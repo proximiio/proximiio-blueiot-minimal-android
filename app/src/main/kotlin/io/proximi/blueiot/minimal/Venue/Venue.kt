@@ -36,6 +36,11 @@ import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.requestPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
 import io.proximi.sdk.setPermissionLauncher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class Venue private constructor(
     /**
@@ -49,6 +54,14 @@ class Venue private constructor(
      * detaching is by name.
      */
     private var attachedProvider: String? = null
+
+    /**
+     * The one coroutine scope this app owns, and it belongs to the visit rather than to a
+     * screen: the map comes and goes with the Activity, and a note about the gallery the
+     * visitor has just walked into is due whether or not anything is on screen. Cancelled
+     * in [stop], which is the only thing that ends the visit.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
      * Points positioning at one wristband.
@@ -103,8 +116,21 @@ class Venue private constructor(
         sdk.refreshPermissions()
     }
 
+    /**
+     * Starts the place notifications (`GeofenceNotifier`).
+     *
+     * Nothing extra is needed for them to arrive with the screen off: the geofences are
+     * evaluated in the very process the foreground service already keeps alive for the
+     * pocket, so a note reaches the lock screen for the same four reasons the dot keeps
+     * moving. Off a scope of this venue's, so it stops when the visit does.
+     */
+    private fun notifyOnPlaceChanges(context: Context) {
+        scope.launch { GeofenceNotifier(context).collectFrom(sdk) }
+    }
+
     /** Called when the screen holding this venue is gone for good. */
     suspend fun stop() {
+        scope.cancel()
         sdk.stop()
     }
 
@@ -155,6 +181,10 @@ class Venue private constructor(
          *  4. [loadRouteNetwork] downloads the venue's GeoJSON: the POIs this app
          *     searches *and* the path network `computeRoute` walks, cached locally, so
          *     it is the one network call wayfinding needs.
+         *
+         * The place notifications are attached between 3 and 4, because the geofence
+         * stream exists from the moment the SDK is started and a transition can arrive
+         * while the route network is still downloading.
          */
         suspend fun start(
             context: Context,
@@ -166,8 +196,10 @@ class Venue private constructor(
             sdk.requestPermissions()
             sdk.authenticate()
             sdk.start()
+            val venue = Venue(sdk)
+            venue.notifyOnPlaceChanges(context)
             sdk.loadRouteNetwork()
-            return Venue(sdk)
+            return venue
         }
     }
 }

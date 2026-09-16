@@ -1,10 +1,11 @@
 # Proximi.io Blueiot — minimal reference app (Android)
 
-A complete venue app in 1909 lines of Kotlin across twelve files. It asks
+A complete venue app in 2063 lines of Kotlin across thirteen files. It asks
 for the visitor's wristband number once, shows the venue map, searches the
-venue's places, routes to the one they pick, says which turn to take next, and
-walks a whole afternoon of them in order — added to, reordered and detoured from
-as the afternoon goes, with the phone in a pocket as often as not. The visitor is
+venue's places, routes to the one they pick, says which turn to take next, notes
+on the lock screen which place they have just walked into, and walks a whole
+afternoon of them in order — added to, reordered and detoured from as the
+afternoon goes, with the phone in a pocket as often as not. The visitor is
 positioned by the venue's own Blueiot anchors, through the Proximi.io cloud relay
 — the phone scans nothing.
 
@@ -12,11 +13,12 @@ It exists to be read. Every file is short enough to read in one sitting, and the
 comments mark the seams where your own product's code goes.
 
 This is the Android twin of [`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios),
-file for file. Where the two differ, it is because Android differs — each place
-is marked in the file and listed under **In a pocket** and **The diagnostics log**
-below.
+file for file, with one file more than iOS has. Where the two differ, it is
+because Android differs, or because the product asked for something here that iOS
+does not do — each place is marked in the file and listed under **Place
+notifications**, **In a pocket** and **The diagnostics log** below.
 
-The iOS app is 1334 lines of Swift; this one is 1909 of Kotlin for the same
+The iOS app is 1334 lines of Swift; this one is 1945 of Kotlin for the same
 twelve files and the same behaviour. Two hundred of those are imports — Compose
 names one symbol per line where `import SwiftUI` brings the whole framework — and
 most of the rest is what SwiftUI hands out for free and Compose does not: a
@@ -99,8 +101,8 @@ MapLibre arrives through `proximiio-map` and must not be declared here.
 
 ## Where things are
 
-Twelve files, in the iOS app's folders. They are all one Kotlin package
-(`io.proximi.blueiot.minimal`): twelve files do not need a module boundary, and
+Thirteen files, in the iOS app's folders. They are all one Kotlin package
+(`io.proximi.blueiot.minimal`): thirteen files do not need a module boundary, and
 the folders are there so the two apps read side by side.
 
 | File | What it owns |
@@ -111,6 +113,7 @@ the folders are there so the two apps read side by side.
 | `Venue/Venue.kt` | Starting the SDK and attaching the cloud relay to one band |
 | `Venue/VenuePoi.kt` | Turning the venue's features into searchable places |
 | `Venue/JourneyStore.kt` | Keeping a visit across launches, and turning a picked place into a stop |
+| `Venue/GeofenceNotifier.kt` | What a place notification says, and posting it — the one file with no iOS twin |
 | `UI/WristbandPrompt.kt` | The first thing the app asks a person for, and the map credits |
 | `UI/LocationPrompt.kt` | The other one, and the rule for when it is shown |
 | `UI/VenueMapScreen.kt` | Map, search button, route, and where a visit starts |
@@ -175,6 +178,10 @@ alive; `runsInBackground` keeps the socket open."*
 | The manifest permissions | `AndroidManifest.xml` | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION` and `WAKE_LOCK`. From API 34 the platform refuses `startForeground` without the permission for the service's type, and the SDK derives that type from the grants it holds |
 | One location grant | `LocationPrompt` | Without it the SDK cannot hold a `location` foreground service at all, and there is no other type a relay-only app qualifies for |
 
+Those four are also the whole of what the place notifications need: a geofence
+note lands on the lock screen because the process that evaluates the geofence is
+the one the service keeps alive.
+
 Coarse location is all this app asks for, and it is not asked for the position:
 the venue's anchors place the wristband, and the phone's own location never
 enters it — the grant is what lets the service exist. `POST_NOTIFICATIONS` is
@@ -211,6 +218,23 @@ strings and no library should choose a venue's language for it.
 Leaving the route is reported, not acted on: `isOffRoute` latches after three
 fixes beyond twelve metres and clears itself on the first fix back inside, so the
 bar says so and this app adds no detector and no re-routing of its own.
+
+**Place notifications.** Walk into one of the venue's geofences and a note says
+so — *"You are now inside Main Hall."* — and walking out replaces that
+same row with *"You have left Main Hall."* The whole of it is
+`Venue/GeofenceNotifier.kt`: one channel ("Place updates"), the geofence's name
+as the title, one plain sentence as the body, and one notification id per
+geofence, so an exit replaces its enter instead of leaving two rows to reconcile.
+Tapping one opens the map. **This is the one deliberate divergence from the iOS
+app, which posts no notifications at all** — it lists "no notification prompts"
+among the things it is not, and this is Android answering a product ask iOS has
+not been given. Geofences are drawn in Proximi.io Portal, not here; an area the
+venue never named says nothing, because a geofence id means nothing to a visitor.
+Privacy zones are never announced, in either direction: a privacy zone exists so
+that the visitor's presence inside it is not reported, and a lock screen anyone
+can read is the last place to report it. The permission is the
+`POST_NOTIFICATIONS` that `LocationPrompt` already asks for on API 33+ — there is
+no second ask, and a refusal costs the banners and nothing else.
 
 **A visit.** The list button next to the search opens the same search sheet in
 multi-select; the places tapped, in that order, become a `Journey`. From there
@@ -281,14 +305,17 @@ writes a credential to it.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Twenty of them — iOS's twenty, minus the diagnostics one above, plus one because Android has two background switches where iOS has one — and all four
-remaining subjects are chosen for the same reason: they fail without anything on
-screen looking wrong. A wristband read one way by the app and another way by the
+Twenty-five of them — iOS's twenty, minus the diagnostics one above, plus one
+because Android has two background switches where iOS has one, plus five for the
+place notifications iOS does not have — and all five subjects are chosen for the
+same reason: they fail without anything on screen looking wrong. A wristband read one way by the app and another way by the
 relay matches nothing, and the symptom is a dot that never arrives. A visit that
 does not survive a launch loses a visitor's afternoon in silence. An amenity
 query that reads the venue's data wrongly makes a venue with toilets look like a
 venue without any. A background switch left at its default, or a location ask
-that nags or never fires, stops the dot minutes after the screen locks. The
+that nags or never fires, stops the dot minutes after the screen locks. A
+notification sentence naming the wrong place reads perfectly, and a privacy zone
+announced on a lock screen is the one thing a privacy zone exists to prevent. The
 screens are not tested; a layout that is wrong is a layout you can see.
 
 JUnit 4, as the SDK uses. Robolectric only where `SharedPreferences` needs it —
