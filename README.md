@@ -69,7 +69,7 @@ needs no credentials to read. There is no `mavenLocal()`.
 | --- | --- |
 | `io.proximi.sdk:proximiio` | `6.0.0-beta.6` |
 | `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.6` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.8` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.9` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
