@@ -12,7 +12,7 @@ cloud relay. The phone scans nothing.
 This is the Android twin of
 [`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios),
 file for file, with one file more. The deliberate divergences are listed under
-**Place notifications**, **In a pocket** and **The diagnostics log**.
+**Choosing a place**, **Place notifications**, **In a pocket** and **The diagnostics log**.
 
 ## What it is not
 
@@ -91,7 +91,7 @@ Thirteen files in the iOS app's folder layout, all in one Kotlin package
 | `Venue/GeofenceNotifier.kt` | The notification text and posting it. No iOS twin |
 | `UI/WristbandPrompt.kt` | The wristband field, and the map credits |
 | `UI/LocationPrompt.kt` | The location prompt, and the rule for when it is shown |
-| `UI/VenueMapScreen.kt` | Map, search, route, and where a visit starts |
+| `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, and where a visit starts |
 | `UI/PoiSearchSheet.kt` | The search list, single or multi-select |
 | `UI/GuidanceLine.kt` | The turn-by-turn sentence |
 | `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, detours, reordering |
@@ -179,6 +179,24 @@ maintenance window. The lock is released with the service and is bounded by
 after the service stops, and OEM process management on top of Doze may still reduce
 delivery. The SDK never requests `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` and neither does
 this app. Test with `adb shell dumpsys deviceidle force-idle`.
+
+## Choosing a place
+
+A destination is chosen in two ways, and both call the same `route` function in
+`VenueMapScreen`:
+
+| Input | Where |
+| --- | --- |
+| Pick one place in the search sheet | `PoiSearchSheet`, single-select |
+| Tap a place on the map | `session.onFeatureTap`, resolved by `VenuePoi.tapped` |
+
+`ProximiioMapSession.onFeatureTap` reports the feature ids under the tap, nearest first.
+`VenuePoi.tapped` returns the first id that is one of the venue's POIs, so a POI drawn over
+a room is chosen before the room. A tap on anything else does nothing. While a visit runs,
+`JourneyBar` owns the route and a tap on the map does nothing.
+
+Tap-to-route is a deliberate divergence from the iOS app, which chooses places through the
+search only.
 
 ## Turn-by-turn
 
@@ -278,7 +296,7 @@ verbatim, is not ported; `BackgroundPositioningTests` notes this in its header.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Twenty-five tests. All five subjects are chosen because they fail without anything on
+Twenty-nine tests. All six subjects are chosen because they fail without anything on
 screen looking wrong:
 
 - a wristband id read one way by the app and another way by the relay matches no tag, and
@@ -289,7 +307,8 @@ screen looking wrong:
 - a background flag left at its default, or a location prompt that nags or never fires,
   stops position updates minutes after the screen locks;
 - a notification sentence naming the wrong place reads correctly, and a privacy zone
-  announced on a lock screen is the one thing a privacy zone exists to prevent.
+  announced on a lock screen is the one thing a privacy zone exists to prevent;
+- a tap resolved to the room under a POI instead of the POI routes to the wrong place.
 
 The screens are not tested; they hold no logic.
 

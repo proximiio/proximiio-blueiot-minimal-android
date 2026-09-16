@@ -44,6 +44,22 @@ data class VenuePoi(
         }
 
         /**
+         * The place under a tap on the map, or `null` when no tapped feature is a place.
+         *
+         * [identifiers] is what `ProximiioMapSession.onFeatureTap` reports: feature ids,
+         * nearest first. The first id that belongs to a place is returned, so a POI drawn
+         * over a room is chosen before the room.
+         */
+        fun tapped(
+            identifiers: List<String>,
+            pois: List<VenuePoi>,
+        ): VenuePoi? {
+            if (identifiers.isEmpty() || pois.isEmpty()) return null
+            val byId = pois.associateBy(VenuePoi::id)
+            return identifiers.firstNotNullOfOrNull(byId::get)
+        }
+
+        /**
          * `null` for a feature that is not a searchable place. Rooms, walls, level
          * changers and the walkable path network arrive in the same list.
          */

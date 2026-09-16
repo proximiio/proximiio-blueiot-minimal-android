@@ -158,6 +158,17 @@ fun VenueMapScreen(
             }
     }
 
+    // Tapping a place on the map routes to it, the same as picking it in the search.
+    // While a visit runs, `JourneyBar` owns the route and a tap does nothing.
+    // `places` and `journey` are read when the tap arrives, not when this is assigned.
+    DisposableEffect(session) {
+        session.onFeatureTap = { identifiers, _ ->
+            val place = VenuePoi.tapped(identifiers, places)
+            if (place != null && journey == null) scope.launch { route(place) }
+        }
+        onDispose { session.onFeatureTap = null }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         ProximiioMap(
             session = session,
