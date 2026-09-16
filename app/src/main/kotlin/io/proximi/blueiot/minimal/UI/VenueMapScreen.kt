@@ -2,20 +2,14 @@
 //  VenueMapScreen.kt
 //  BlueiotMinimal
 //
-//  THE APP, ONCE IT KNOWS THE WRISTBAND: a venue map, a search, a route, and the
-//  turn to take next.
+//  The venue map, the place search, the route to a picked place, and the next turn.
 //
-//  Nothing here draws on the map. `ProximiioMap` owns the venue style, the floors,
-//  the amenities, the blue dot and — given a route — the drawing of it, split so the
-//  floor on screen shows its own segment. What this screen owns is three lines of
-//  app: which place the visitor picked, asking the SDK for a route to it, and handing
-//  that route over. The recentre button is a fourth, and it is one call into the
-//  library's own follow camera rather than a camera this app wrote. Turn-by-turn is a
-//  fifth: one line opts in, and the only thing left to the app is the English the
-//  instruction is said in.
-//
-//  Your product's chrome goes in `BottomBar`. Your product's screens go beside this
-//  one.
+//  Nothing here draws on the map. `ProximiioMap` owns the venue style, the floors, the
+//  amenities, the position marker and, given a route, the drawing of it split so the
+//  floor on screen shows its own segment. This screen owns the picked destination, the
+//  `computeRoute` call, and handing the route to the session. The recentre button calls
+//  the library's follow camera. Turn-by-turn is one opt-in line plus the English the
+//  instruction is rendered in.
 //
 package io.proximi.blueiot.minimal
 
@@ -73,8 +67,8 @@ import kotlinx.coroutines.withContext
 fun VenueMapScreen(
     venue: Venue,
     /**
-     * The band being followed, and what to do with a different one. The sheet that
-     * asks is behind the long press below, and lists the map's credits with it.
+     * The wristband being followed, and what to do with a new one. The sheet that asks
+     * is behind the long press below, and lists the map's credits with it.
      */
     wristband: String,
     onSaveWristband: (WristbandId) -> Unit,
@@ -83,8 +77,8 @@ fun VenueMapScreen(
     val scope = rememberCoroutineScope()
     val store = remember(context) { WristbandStore.preferences(context) }
 
-    // The map session, named here rather than left to `ProximiioMap(sdk = …)`,
-    // because naming it is what gives this screen something to call `setRoute` on.
+    // The session is named here rather than left to `ProximiioMap(sdk = …)` because this
+    // screen calls `setRoute` and `clearRoute` on it.
     val session =
         remember(venue) {
             ProximiioMapSession(
@@ -92,31 +86,30 @@ fun VenueMapScreen(
                 context = context,
                 options =
                     MapOptions(
-                        // The library's own floor picker. This app has no other, so
-                        // there is no risk of two.
+                        // The library's own floor picker; this app adds no other.
                         floorSelector = MapOptions.FloorSelector.TRAILING,
-                        // Draw a route whenever one is set, and clear it when one is not.
+                        // Draw whatever route is set, and clear it when none is.
                         route = MapOptions.Route.AUTOMATIC,
-                        // No attribution ⓘ, MapLibre logo or compass over the map. The
-                        // credits the ⓘ presented are this app's to show now; the
-                        // long-press sheet lists them.
+                        // No attribution control, MapLibre logo or compass over the map.
+                        // An app that hides the control must show the style's credits
+                        // itself; the long-press sheet lists them.
                         chrome = MapCanvasChrome.BARE,
                     ),
             )
         }
-    // The session owns a coroutine scope, a canvas and a style; nobody else closes it.
+    // The session owns a coroutine scope, a canvas and a style. Nothing else closes it.
     DisposableEffect(session) { onDispose { session.close() } }
 
     var places by remember { mutableStateOf(emptyList<VenuePoi>()) }
     var destination by remember { mutableStateOf<VenuePoi?>(null) }
     var note by remember { mutableStateOf<String?>(null) }
     var isSearching by remember { mutableStateOf(false) }
-    // The visit in progress, restored from disk on the first composition. `null` is
-    // the ordinary state of this app: a search bar and one destination.
+    // The visit in progress, restored from disk on the first composition. `null` is the
+    // ordinary state: a search bar and one destination.
     var journey by remember { mutableStateOf(JourneyStore.load(store)) }
     var isPlanningVisit by remember { mutableStateOf(false) }
-    // Held as the state object rather than its value, because the long-press handler
-    // below is registered once and would otherwise capture the first `false` for ever.
+    // Held as the state object rather than its value: the long-press listener below is
+    // registered once and would otherwise capture the first `false` permanently.
     val isChangingWristband = remember { mutableStateOf(false) }
 
     val guidance by session.guidance.collectAsStateWithLifecycle()
@@ -125,10 +118,8 @@ fun VenueMapScreen(
     val credits by session.attributions.collectAsStateWithLifecycle()
 
     LaunchedEffect(session) {
-        // One line turns turn-by-turn on, and the session follows the route it is
-        // already drawing: which turn is next, how far is left to it, whether the
-        // visitor has walked off it, whether they have arrived. Off by default, so an
-        // app that does not want it writes nothing.
+        // Turn-by-turn guidance is off by default. Setting the rules is the whole
+        // opt-in; the session then follows the route it is already drawing.
         session.guidanceRules = RouteFollowRules.VENUE_WALK
         // A local cache read, not a download: `Venue.start` already fetched it.
         places = VenuePoi.all(venue.sdk.features())
@@ -171,18 +162,17 @@ fun VenueMapScreen(
         ProximiioMap(
             session = session,
             modifier = Modifier.fillMaxSize(),
-            // Changing the wristband without a settings screen: press and hold the
-            // map. MapLibre's own long press, so the map keeps its pan, pinch and
-            // rotate. Undiscoverable on purpose — a visitor is handed a band and never
-            // needs this; staff are told about it once. `configure` runs before the
-            // first style load and the map itself only exists after it, which is why
-            // the listener is registered inside `onStyleLoaded`.
+            // Changing the wristband without a settings screen: long-press the map.
+            // MapLibre's own long press, so pan, pinch and rotate are unaffected. There
+            // is deliberately no visible control. `configure` runs before the first
+            // style load and the map exists only after it, so the listener is registered
+            // inside `onStyleLoaded`.
             configure = { canvas ->
                 canvas.onStyleLoaded { map, _ ->
                     map.addOnMapLongClickListener {
                         isChangingWristband.value = true
-                        // `false` would let the gesture fall through to the map's own
-                        // handling as well; this press means one thing.
+                        // `true` consumes the gesture; `false` would also let the map
+                        // handle it.
                         true
                     }
                 }
@@ -191,8 +181,8 @@ fun VenueMapScreen(
 
         val visit = journey
         if (visit != null) {
-            // The journey drives the same session the map is already using, so there
-            // is one map, one camera and one drawn route either way.
+            // The journey drives the same session as the map, so there is one camera and
+            // one drawn route either way.
             JourneyBar(
                 session = session,
                 journey = visit,
@@ -202,11 +192,9 @@ fun VenueMapScreen(
                 onEnd = {
                     journey = null
                     JourneyStore.save(null, store)
-                    // `JourneyNavigator.end()` hands the session back: it clears the
-                    // route, the journey overlay and — because a journey owns guidance
-                    // while it runs — `guidanceRules`. Turning guidance back on is what
-                    // returns this screen to the single-route behaviour it had before
-                    // the visit started.
+                    // `JourneyNavigator.end()` clears the route, the journey overlay and
+                    // `guidanceRules`, which a journey owns while it runs. Setting the
+                    // rules again restores this screen's single-route behaviour.
                     session.guidanceRules = RouteFollowRules.VENUE_WALK
                 },
             )
@@ -252,8 +240,8 @@ fun VenueMapScreen(
                                 session.clearRoute()
                             }) { Icon(Icons.Filled.Close, contentDescription = "Clear route") }
                         }
-                        // Several places instead of one. Hidden while a visit is
-                        // running, because `JourneyBar` takes this bar's place then.
+                        // Hidden while a visit is running: `JourneyBar` replaces this
+                        // bar then.
                         IconButton(onClick = { isPlanningVisit = true }, enabled = places.isNotEmpty()) {
                             Icon(Icons.Outlined.ViewList, contentDescription = "Plan a visit")
                         }
@@ -280,8 +268,8 @@ fun VenueMapScreen(
     }
 
     if (isPlanningVisit) {
-        // The same search, in the same file, picking several places instead of one.
-        // The order they are tapped is the order they are walked.
+        // The same search sheet, picking several places. The tap order is the walk
+        // order.
         ModalBottomSheet(onDismissRequest = { isPlanningVisit = false }) {
             PoiSearchSheet(pois = places, allowsMultiple = true) { picked ->
                 isPlanningVisit = false
@@ -296,8 +284,8 @@ fun VenueMapScreen(
 
     if (isChangingWristband.value) {
         ModalBottomSheet(onDismissRequest = { isChangingWristband.value = false }) {
-            // Read, not stored: `attributions` is a flow, so the sheet lists what the
-            // loaded style declares.
+            // `attributions` is a flow, so the sheet lists what the loaded style
+            // declares.
             WristbandPrompt(
                 current = wristband,
                 credits = credits,
@@ -312,23 +300,19 @@ fun VenueMapScreen(
 }
 
 /**
- * "Show me where I am", and nothing else is needed to make it work.
+ * Recentres the map on the wristband.
  *
- * `ProximiioMapSession` owns the follow camera (`MapOptions.camera` defaults to
- * `FOLLOW`, so the map is already following when the first fix lands). `recentre()`
- * re-arms that camera and eases the zoom back in; `followMyFloor()` unpins the
- * storey, because a visitor who taps this while looking at another floor means "take
- * me back", and taking them back to a storey they are not on would not.
+ * `ProximiioMapSession` owns the follow camera. `MapOptions.camera` defaults to
+ * `FOLLOW`, so the map is already following when the first position arrives.
+ * `recentre()` re-arms that camera and eases the zoom back in; `followMyFloor()` unpins
+ * the floor, so the map returns to the floor the visitor is on.
  *
- * Panning, pinching or rotating the map drops the camera to `FREE` on its own — the
- * library watches for the hand and publishes the change through
- * `ProximiioMapSession.cameraMode`. This screen only reads that, and must not add
- * gesture handling of its own.
+ * Panning, pinching or rotating the map drops the camera to `FREE`, and the library
+ * publishes that through `ProximiioMapSession.cameraMode`. This screen only reads it and
+ * must add no gesture handling of its own.
  *
- * Filled symbol while following, outline while free. Disabled until there is a
- * position at all: with the wristband silent or the relay down there is nowhere to
- * centre on, and a button that looks live and does nothing is worse than one that
- * says so.
+ * Filled symbol while following, outline while free. Disabled until a position exists,
+ * because there is nothing to centre on until then.
  */
 @Composable
 private fun RecentreButton(

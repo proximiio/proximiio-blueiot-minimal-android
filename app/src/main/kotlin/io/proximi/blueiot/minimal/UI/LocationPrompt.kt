@@ -2,18 +2,17 @@
 //  LocationPrompt.kt
 //  BlueiotMinimal
 //
-//  The other thing this app asks a person for — once, between the wristband and
-//  the map.
+//  Requests `ACCESS_COARSE_LOCATION`, and `POST_NOTIFICATIONS` on API 33 and above.
+//  Shown once, between the wristband prompt and the map.
 //
-//  Not for the position: the venue's anchors place the wristband, and the phone's
-//  location never enters it. It is asked for because Android freezes a backgrounded
-//  process within minutes unless a foreground service is running, and from API 34 the
-//  platform refuses to raise one of type `location` without a location grant — so with
-//  the question unanswered, the dot stops the moment the phone goes in a pocket.
-//  Coarse is enough; nothing here asks for background location. `POST_NOTIFICATIONS`
-//  is asked with it on 33+ so the service's ongoing row is visible; a refusal leaves
-//  the service running invisibly and costs nothing else. The two flags that go with
-//  them are in `Venue.kt`, the manifest permissions in `AndroidManifest.xml`.
+//  The location grant is not used for the position: the venue's anchors locate the
+//  wristband. It is required because Android freezes a backgrounded process within
+//  minutes unless a foreground service is running, and from API 34 the platform refuses
+//  to start a service of type `location` without a location grant. Coarse is enough.
+//  Background location is never requested. `POST_NOTIFICATIONS` is requested with it so
+//  the service's ongoing notification is visible; a refusal leaves the service running
+//  with the notification hidden and affects nothing else. The two configuration flags
+//  are in `Venue.kt`, the manifest permissions in `AndroidManifest.xml`.
 //
 package io.proximi.blueiot.minimal
 
@@ -40,10 +39,10 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LocationPrompt(onAnswered: () -> Unit) {
-    // The app runs its own prompt, for exactly the permissions the manifest declares,
-    // rather than letting the SDK ask: a relay-only app scans nothing, and a visitor
-    // handed a Bluetooth dialog for a radio the app never turns on would be right to
-    // wonder. Whatever comes back, the question has been asked.
+    // The app runs its own prompt, for exactly the permissions its manifest declares,
+    // rather than letting the SDK request them: the SDK would also request Bluetooth,
+    // which a relay-only app never uses. This is a deliberate divergence from the iOS
+    // app, which lets the SDK raise the dialog. Any result counts as answered.
     val request =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             onAnswered()
@@ -69,12 +68,12 @@ object LocationPrompt {
     private const val KEY = "LocationAsked"
 
     /**
-     * Shown only while Android has never been asked. A refusal is an answer: the map
-     * works on screen without it, and nobody is asked twice.
+     * Whether the prompt is still owed. It is shown only while Android has never been
+     * asked; a refusal counts as an answer and nobody is asked twice.
      *
-     * The flag is the app's own, because Android has no `notDetermined`:
-     * `shouldShowRequestPermissionRationale` cannot tell "never asked" from "denied
-     * twice", and the two want opposite things from this screen.
+     * The flag is the app's own because Android reports no "not determined" state and
+     * `shouldShowRequestPermissionRationale` cannot distinguish "never asked" from
+     * "denied twice".
      */
     fun isOwed(hasBeenAsked: Boolean): Boolean = !hasBeenAsked
 
@@ -84,7 +83,7 @@ object LocationPrompt {
         store.edit { putBoolean(KEY, true) }
     }
 
-    /** Exactly what the manifest declares, and nothing else. */
+    /** Exactly the runtime permissions this app's manifest declares. */
     fun permissions(): Array<String> =
         buildList {
             add(Manifest.permission.ACCESS_COARSE_LOCATION)

@@ -2,13 +2,10 @@
 //  JourneyTests.kt
 //  BlueiotMinimalTests
 //
-//  The two pieces of the visit that fail silently.
-//
-//  A journey that does not survive a launch loses a visitor's afternoon without
-//  anything on screen going wrong, and an amenity query that reads the venue's data
-//  the wrong way offers a detour to nowhere — or, worse, offers nothing and looks
-//  like a venue with no toilets. Neither shows up in a screenshot. The Compose around
-//  them is not tested, because a layout that is wrong is a layout you can see.
+//  The two parts of the visit that fail silently: journey persistence, and the amenity
+//  query behind the detour offers. A journey that does not survive a launch, or an
+//  amenity query that reads the venue's data wrongly, produces no visible error. The
+//  Compose around them is not tested.
 //
 package io.proximi.blueiot.minimal
 
@@ -33,12 +30,11 @@ import org.robolectric.RuntimeEnvironment
 import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
-// SDK 35, not the newest: Robolectric's API 36 image needs Java 21 and this project
-// builds on 17. `SharedPreferences` is the whole of what these exercise, and it has
-// not moved.
+// SDK 35, not 36: Robolectric's API 36 image requires Java 21 and this project builds on
+// 17. These tests exercise `SharedPreferences` only.
 @Config(sdk = [35])
 class JourneyPersistenceTests {
-    /** A file of its own, so a test never writes into the real app's store. */
+    /** A file of its own, so a test never writes into the app's real store. */
     private lateinit var store: SharedPreferences
 
     @Before
@@ -62,11 +58,7 @@ class JourneyPersistenceTests {
         state = state,
     )
 
-    /**
-     * The whole point: the order AND each stop's state come back, so a visitor who
-     * closed the app in the second gallery re-opens it in the second gallery rather
-     * than at the front door.
-     */
+    /** The order and each stop's state both survive a save and a load. */
     @Test
     fun roundTripKeepsOrderAndState() {
         val journey =
@@ -103,8 +95,8 @@ class JourneyPersistenceTests {
     }
 
     /**
-     * Ending a visit is the same call as saving one, so the next launch must not
-     * resume the afternoon the visitor just finished.
+     * Ending a visit is the same call as saving one, so the next launch must not resume
+     * the finished visit.
      */
     @Test
     fun endingClears() {
@@ -113,10 +105,7 @@ class JourneyPersistenceTests {
         assertNull(JourneyStore.load(store))
     }
 
-    /**
-     * An empty journey is not a journey. Saving one clears rather than restoring a
-     * bar with nothing in it.
-     */
+    /** Saving a journey with no stops clears the stored value. */
     @Test
     fun emptyJourneyIsNotAVisit() {
         JourneyStore.save(Journey(stops = listOf(stop("atrium"))), store)
@@ -125,8 +114,8 @@ class JourneyPersistenceTests {
     }
 
     /**
-     * Something else wrote to the key — an older build, a different shape. Treated
-     * as "no visit", never as a crash on launch.
+     * A value this build cannot decode, such as one an older build wrote, is treated as
+     * no visit rather than as a crash on launch.
      */
     @Test
     fun unreadableValueIsNoVisit() {
@@ -136,13 +125,13 @@ class JourneyPersistenceTests {
 }
 
 /**
- * `VenuePoi.nearestByAmenity` — "find me a toilet", answered off the venue's own
- * data rather than off a list of categories somebody assumed.
+ * `VenuePoi.nearestByAmenity`, answered from the venue's own amenity tags rather than
+ * from a list of categories in the app.
  */
 class AmenityQueryTests {
     /**
-     * A POI as `Proximiio.features()` returns one. Longitudes only, at this latitude
-     * roughly 74 km per degree, so "further east" is "further away".
+     * A POI as `Proximiio.features()` returns one. Only the longitude varies; at this
+     * latitude one degree is roughly 74 km, so a larger longitude is further away.
      */
     private fun poi(
         id: String,
@@ -172,8 +161,8 @@ class AmenityQueryTests {
     private fun places(features: List<ProximiioFeature>) = VenuePoi.all(features)
 
     /**
-     * One answer per kind, and it is the nearest one of that kind — not the first in
-     * the list, which is the mistake that looks right in a venue with one toilet.
+     * One answer per kind, and it is the nearest of that kind rather than the first in
+     * the list.
      */
     @Test
     fun nearestOfEachKind() {
@@ -193,9 +182,9 @@ class AmenityQueryTests {
     }
 
     /**
-     * A venue tags what it tags. Nothing here knows the word "toilet", so a venue
-     * whose POIs are all artworks offers artworks and a venue that tags nothing
-     * offers nothing — which is the honest answer, not an empty hard-coded list.
+     * The kinds come from the venue's data. Nothing in the app knows the word "toilet",
+     * so a venue whose POIs are all artworks offers artworks, and a venue that tags
+     * nothing offers nothing.
      */
     @Test
     fun kindsComeFromTheDataNotFromUs() {
@@ -213,10 +202,7 @@ class AmenityQueryTests {
         assertTrue(VenuePoi.nearestByAmenity(emptyList(), here).isEmpty())
     }
 
-    /**
-     * An untagged place is still searchable and still routable — it is only not a
-     * detour offer.
-     */
+    /** An untagged place is searchable and routable; it is only not a detour offer. */
     @Test
     fun untaggedPlacesAreStillPlaces() {
         val pois =

@@ -9,10 +9,10 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // Where the released SDK and map library live. Reading needs no credentials, so a
-        // fresh clone builds with nothing installed locally — these are the same artefacts a
-        // customer resolves, and there is deliberately no `mavenLocal()` here: an example
-        // that only builds on the machine that published the library is not an example.
+        // Where the released SDK and map library are published. Reading needs no
+        // credentials, so a fresh clone builds with nothing installed locally. These are
+        // the same artifacts a customer resolves, and there is deliberately no
+        // `mavenLocal()`.
         maven("https://maven.eu.proximi.fi/releases/") {
             name = "proximiioMaven"
             content {

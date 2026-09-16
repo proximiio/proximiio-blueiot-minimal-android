@@ -2,22 +2,19 @@
 //  GeofenceNotifier.kt
 //  BlueiotMinimal
 //
-//  A note when the visitor walks into one of the venue's places, and one when they
-//  walk out of it.
+//  Posts a notification when the visitor enters or leaves one of the venue's geofences.
+//  One channel, one sentence and one notification id per geofence. Geofences are
+//  defined in Proximi.io Portal and evaluated by the SDK against every position.
 //
-//  THE ONE FILE WITH NO iOS TWIN. The iOS app lists "no notification prompts" among
-//  the things it deliberately is not; this one posts notes because the product asked
-//  for them on Android. One channel, one sentence, one row per geofence. The geofences
-//  are drawn in Proximi.io Portal and evaluated by the SDK against every fix.
+//  This file has no iOS twin. The iOS app posts no notifications; Android does because
+//  the product required it.
 //
-//  NOTHING EXTRA IS NEEDED FOR THE SCREEN TO BE OFF: the geofence is evaluated in the
-//  same process the foreground service already keeps alive for the pocket (`Venue.kt`),
-//  so a note reaches a locked screen for the four reasons the dot keeps moving. No
-//  second service, no receiver, no background job.
+//  Notifications arrive with the screen off for the same four reasons positioning
+//  continues (`Venue.kt`): the geofence is evaluated in the process the foreground
+//  service keeps alive. No second service, receiver or background job is involved.
 //
-//  PRIVACY ZONES ARE NEVER ANNOUNCED. A privacy zone exists so that the visitor's
-//  presence inside it is not reported; putting "You are now inside the staff room." on
-//  a lock screen anyone can read would be the one thing it is there to prevent.
+//  Privacy zone events never produce a notification. A privacy zone exists so that the
+//  visitor's presence inside it is not reported.
 //
 package io.proximi.blueiot.minimal
 
@@ -35,14 +32,14 @@ import io.proximi.sdk.Proximiio
 import io.proximi.sdk.geofenceEvents
 import io.proximi.sdk.geofencing.GeofenceEvent
 
-/** One transition, reduced to what a notification needs. Pure, so the words are testable. */
+/** One geofence transition, reduced to what a notification needs. */
 data class PlaceNote(val id: Int, val title: String, val body: String)
 
 class GeofenceNotifier(context: Context) {
     private val appContext: Context = context.applicationContext
     private val manager = NotificationManagerCompat.from(appContext)
 
-    /** Collects until the scope that launched it is cancelled — the venue's, in `Venue.stop`. */
+    /** Collects until the scope that launched it is cancelled, which is `Venue.stop`. */
     suspend fun collectFrom(sdk: Proximiio) {
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL, NotificationManagerCompat.IMPORTANCE_DEFAULT)
@@ -54,9 +51,9 @@ class GeofenceNotifier(context: Context) {
     }
 
     /**
-     * A refusal costs the banners and nothing else: `POST_NOTIFICATIONS` is asked for
-     * alongside location in `LocationPrompt` on API 33+, this app never asks a second
-     * time, and everything else carries on without it.
+     * `POST_NOTIFICATIONS` is requested alongside location in `LocationPrompt` on API 33
+     * and above. This app never requests it a second time. A refusal suppresses the
+     * notifications and affects nothing else.
      */
     private fun post(note: PlaceNote) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -65,8 +62,8 @@ class GeofenceNotifier(context: Context) {
         ) {
             return
         }
-        // `singleTop` in the manifest, so a tap brings the map already running forward
-        // rather than building a second one behind it.
+        // The Activity is `singleTop` in the manifest, so a tap brings the running map
+        // forward rather than creating a second instance.
         val open =
             Intent(appContext, MainActivity::class.java)
                 .apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP }
@@ -84,13 +81,13 @@ class GeofenceNotifier(context: Context) {
     }
 
     companion object {
-        /** Renaming this would orphan whatever the visitor chose for it in Android's settings. */
+        /** Renaming this orphans the channel settings the visitor has already chosen. */
         private const val CHANNEL = "place-updates"
 
         /**
-         * What a transition says, or `null` when it says nothing: a privacy zone, for the
-         * reason at the head of this file, and an area the venue never named — a geofence
-         * id means nothing to a visitor, and a banner is no place to put one.
+         * The notification for a transition, or `null` when none is posted: privacy zone
+         * events, and geofences the venue left unnamed. A geofence id is never shown to
+         * a visitor.
          */
         fun note(event: GeofenceEvent): PlaceNote? {
             val geofence =
@@ -101,9 +98,9 @@ class GeofenceNotifier(context: Context) {
                 }
             val name = geofence.name?.trim()?.takeIf { it.isNotEmpty() } ?: return null
             return PlaceNote(
-                // One id per geofence, from its own id. `String.hashCode` is specified by
-                // the language, so the id is the same on every device and after a relaunch
-                // — which is what makes the exit replace the enter at all.
+                // One id per geofence, derived from the geofence id. `String.hashCode` is
+                // specified by the language, so the value is the same on every device and
+                // after a relaunch, which is what lets the exit replace the enter.
                 id = geofence.id.hashCode(),
                 title = name,
                 body =

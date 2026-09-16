@@ -1,49 +1,50 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- The venue is downloaded once and the relay is a socket. -->
+    <!-- The venue is downloaded once; the relay is a WebSocket. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-      POSITIONING HAS TO SURVIVE A LOCKED PHONE. Android freezes a backgrounded process
-      within minutes of the last Activity stopping — no socket read, no coroutine tick —
-      and Doze takes the network with it. The SDK's answer is a foreground service
-      (`ProximiioServiceOptions`, see `Venue.kt`), and from API 34 the platform refuses
-      `startForeground` unless the permissions for the service's type are declared. The
-      SDK's own manifest declares the service; these are the grants it needs from the app.
+      Android freezes a backgrounded process within minutes of the last Activity
+      stopping, and Doze stops network delivery with it. The SDK's answer is a foreground
+      service (`ProximiioServiceOptions`, see `Venue.kt`). From API 34 the platform
+      refuses `startForeground` unless the permission for the service's type is declared.
+      The SDK's own manifest declares the service; these are the grants the app declares
+      for it.
 
-      `location` is the only foreground-service type a relay-only app can hold: the SDK
-      derives the type mask from the grants it has, and a relay-only app scans nothing.
+      `location` is the only foreground-service type a relay-only app holds: the SDK
+      derives the type mask from the permissions the app holds, and a relay-only app
+      scans nothing.
     -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!--
-      `ProximiioServiceOptions.holdsWakeLock`: the position source is a socket, and a
-      socket is read on the CPU. In Doze the frame waits for the next maintenance
-      window, which is the difference between a dot that moves as the visitor walks and
-      one that jumps every ten minutes.
+      Required by `ProximiioServiceOptions.holdsWakeLock`. The position source is a
+      socket and a socket is read on the CPU; in Doze the frame would wait for the next
+      maintenance window.
     -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
-      The one runtime grant this app asks for (`LocationPrompt`), and it is not asked for
-      the position: the venue's anchors place the wristband and the phone's own location
-      never enters it. Coarse is enough — nothing here reads a coordinate off the phone —
-      and it is what lets the SDK hold the `location` service type above.
+      The one runtime permission this app requests (`LocationPrompt`). It is not used for
+      the position: the venue's anchors locate the wristband and nothing here reads a
+      coordinate off the phone. It is what lets the SDK hold the `location` service type
+      above. Coarse is enough.
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!--
-      Asked with it on API 33+, so the service's ongoing row is visible. A refusal leaves
-      the service running invisibly and costs nothing else.
+      Requested with it on API 33 and above so the service's ongoing notification is
+      visible. A refusal leaves the service running with the notification hidden.
     -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-      NO BLUETOOTH PERMISSIONS, deliberately. The phone scans nothing: the venue's Blueiot
-      anchors locate the wristband and report to the Proximi.io cloud relay, and
-      `ProximiioConfiguration.relayOnly` turns the SDK's own iBeacon, Eddystone and UWB
-      sources off. An app that asks for Bluetooth here would be asking a visitor for a
-      radio it never turns on.
+      This file declares no Bluetooth permission and the app requests none at runtime.
+      The phone scans nothing: the venue's BlueIoT anchors locate the wristband and
+      report to the Proximi.io cloud relay, and `ProximiioConfiguration.relayOnly` turns
+      the SDK's iBeacon, Eddystone and UWB sources off. The SDK's own manifest still
+      contributes BLUETOOTH_SCAN and BLUETOOTH_CONNECT to the merged manifest; neither is
+      ever requested.
     -->
 
     <application

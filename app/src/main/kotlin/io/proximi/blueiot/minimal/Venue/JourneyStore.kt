@@ -2,13 +2,10 @@
 //  JourneyStore.kt
 //  BlueiotMinimal
 //
-//  Where a visit is kept between launches, and how a picked place becomes a stop.
-//
-//  `Journey` has a codec and each stop carries its own state, so writing it whenever
-//  it changes is the whole of "my afternoon survived the app being closed": the stops
-//  come back with the ones already seen marked, and the navigator recomputes the leg
-//  from the first fix after launch. A visitor who closed the app in one gallery is
-//  routed onward from wherever they re-open it.
+//  Persists the visit in progress to `SharedPreferences`, and builds a `JourneyStop`
+//  from a picked place. `Journey` has a codec and each stop carries its own state, so
+//  writing it on every change is enough to restore a visit across launches. The
+//  navigator recomputes the leg from the first position after launch.
 //
 package io.proximi.blueiot.minimal
 
@@ -24,10 +21,9 @@ object JourneyStore {
     private const val KEY = "BlueiotMinimal.journey"
 
     /**
-     * The visit in progress, or `null` when there is none. A value written by an
-     * older build that no longer decodes is treated as none rather than as a crash —
-     * `JourneyCodec.decode` throws on text it cannot read, and this is where that
-     * becomes "no visit".
+     * The visit in progress, or `null` when there is none. `JourneyCodec.decode` throws
+     * on text it cannot read, such as a value written by an older build; this returns
+     * `null` in that case.
      */
     fun load(store: SharedPreferences): Journey? {
         val text = store.getString(KEY, null) ?: return null
@@ -35,10 +31,7 @@ object JourneyStore {
         return journey.takeIf { it.stops.isNotEmpty() }
     }
 
-    /**
-     * `null`, or a journey with no stops, clears it — so ending a visit is the same
-     * call as saving one.
-     */
+    /** `null`, or a journey with no stops, removes the stored value. */
     fun save(
         journey: Journey?,
         store: SharedPreferences,
@@ -52,9 +45,9 @@ object JourneyStore {
 }
 
 /**
- * A stop is a place the visitor picked. The POI's own id is used both as the stop id
- * and as `poiId`, so a journey read back off disk still points at somewhere in the
- * venue rather than at a coordinate nobody can name.
+ * Builds a stop from a picked place. The POI id is used as both the stop id and
+ * `poiId`, so a restored journey still points at a venue POI rather than at a bare
+ * coordinate.
  */
 fun JourneyStop(poi: VenuePoi): JourneyStop =
     JourneyStop(

@@ -37,11 +37,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # No secret is needed to build this app, and none is configured here. The
-      # credentials live in a git-ignored secrets.properties that CI does not have;
-      # an empty one is written so the build reads empty values, which is the state
-      # the app is written to tolerate — it says which key is missing on screen
-      # instead of crashing. The venue's survey value is tracked, so it needs nothing.
+      # The build needs no secret, and none is configured here. The credentials live in
+      # a git-ignored secrets.properties that CI does not have. An empty one is written
+      # so the build reads empty values, which the app tolerates: it reports the missing
+      # key on screen instead of crashing. The venue's survey value is tracked.
       - name: Empty secrets
         run: printf 'PROXIMIIO_APPLICATION_TOKEN=\nBLUEIOT_CLOUD_RELAY_URL=\nBLUEIOT_CLOUD_RELAY_TOKEN=\n' > secrets.properties
 

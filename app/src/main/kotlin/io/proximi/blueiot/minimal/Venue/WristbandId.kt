@@ -2,10 +2,9 @@
 //  WristbandId.kt
 //  BlueiotMinimal
 //
-//  One spelling rule for the number printed on the band, and the one place it is
-//  stored. Both are tiny, and both are tested, because a wristband id that is read
-//  one way here and another way by the relay does not fail loudly — it just matches
-//  nothing, and the dot never arrives.
+//  The spelling rule for the number printed on a wristband, and where that number is
+//  stored. The rule is the SDK's `BlueiotCloudRelayMessage.decimalTagId`, so this app
+//  cannot read an id differently from the relay client that matches it.
 //
 package io.proximi.blueiot.minimal
 
@@ -14,22 +13,22 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayMessage
 
-/** A Blueiot wristband (tag) id, once it is known to be one. */
+/** A BlueIoT wristband (tag) id. */
 class WristbandId private constructor(
     /**
-     * The id as a number. `ULong` because that is the width of the protocol: the
-     * cloud relay carries `tagId` as a decimal `u64`.
+     * The id as a number. `ULong` matches the protocol width: the cloud relay carries
+     * `tagId` as a decimal `u64`.
      */
     val value: ULong,
 ) {
     /**
-     * The canonical spelling: **decimal**, the same characters printed on the band.
-     * This is what is stored, what is shown back, and what the relay is configured
-     * with.
+     * The canonical spelling: decimal, the characters printed on the band. This is what
+     * is stored, what is shown back, and what `BlueiotCloudRelayConfiguration.tagId` is
+     * set to.
      */
     val canonical: String get() = value.toString()
 
-    /** The same tag on the wire, for the echo under the text field. */
+    /** The same tag in hexadecimal, for the echo under the text field. */
     val hexadecimal: String get() = "0x" + value.toString(HEX_RADIX).uppercase()
 
     override fun equals(other: Any?): Boolean = other is WristbandId && other.value == value
@@ -42,24 +41,20 @@ class WristbandId private constructor(
         private const val HEX_RADIX = 16
 
         /**
-         * Reads whatever a person typed — or pasted out of a vendor screen — into the
-         * one tag it names.
+         * Parses typed or pasted text into the one tag id it names.
          *
-         * The rule is the SDK's own, [BlueiotCloudRelayMessage.decimalTagId], which is
-         * the same function the relay client matches incoming ids with. Called rather
-         * than re-implemented, so this app cannot read an id differently from the relay
-         * that serves it.
+         * The rule is [BlueiotCloudRelayMessage.decimalTagId], the same function the
+         * relay client matches incoming ids with. It is called rather than
+         * re-implemented.
          *
-         * **A bare number is decimal.** That is what is printed on the band and what
-         * Blueiot's own tooling shows: `1234567890` is one thousand million and change,
-         * not a hex string that happens to have no letters in it. An explicit `0x` says
-         * hex, an id with letters in it is hex because it cannot be anything else, and
-         * the codec's 16-digit rendering (`0000000000001B59`) is hex too.
+         * A bare number is decimal: `1234567890` is one thousand million and change, not
+         * a hexadecimal string with no letters in it. A `0x` prefix is hexadecimal, text
+         * containing letters is hexadecimal, and the codec's 16-digit rendering
+         * (`0000000000001B59`) is hexadecimal.
          *
-         * `null` only when the text names no number at all. The SDK's rule refuses
-         * nothing — it hands back text it could not read, so a mistyped id fails to
-         * match rather than matching the wrong tag — and this is where that becomes a
-         * "no".
+         * Returns `null` only when the text names no number. The SDK rule refuses
+         * nothing and returns text it could not read unchanged, so a mistyped id matches
+         * no tag rather than the wrong one; this is where that becomes `null`.
          */
         fun of(text: String): WristbandId? {
             val trimmed = text.trim()
@@ -68,30 +63,29 @@ class WristbandId private constructor(
             return WristbandId(value)
         }
 
-        /** Whether [text] names a wristband at all — for a text field's inline validation. */
+        /** Whether [text] names a wristband id, for a text field's inline validation. */
         fun isValid(text: String): Boolean = of(text) != null
     }
 }
 
 /**
- * Where the wristband id lives between launches.
+ * Stores the wristband id between launches.
  *
  * `SharedPreferences`, not `EncryptedSharedPreferences`: a tag id is not a secret, it is
- * printed in large type on the band in the visitor's hand.
+ * printed on the band.
  */
 object WristbandStore {
     private const val KEY = "WristbandID"
     private const val FILE = "BlueiotMinimal"
 
-    /** The one preferences file this app keeps; the visit lives in it too. */
+    /** The app's one preferences file. The visit is stored in it too. */
     fun preferences(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
     /**
-     * The stored id, re-read through [WristbandId.of] rather than trusted as
-     * characters. That round trip is what lets the stored spelling change without
-     * moving anybody's band: any spelling an earlier build wrote still names the same
-     * tag under today's rule.
+     * The stored id, re-parsed through [WristbandId.of] rather than trusted as
+     * characters, so a spelling written by an earlier build still names the same tag
+     * under the current rule.
      */
     fun load(store: SharedPreferences): WristbandId? = store.getString(KEY, null)?.let(WristbandId::of)
 

@@ -2,16 +2,14 @@
 //  BackgroundPositioningTests.kt
 //  BlueiotMinimalTests
 //
-//  Positioning in a pocket needs four things (see `Venue.kt`). These are the two
-//  that fail silently: forget either and the dot stops within minutes of the screen
-//  locking, with nothing on screen to say why. The other two are the manifest
-//  permissions and the visitor's own grant, and a build without the permissions is
-//  one the SDK warns about in the log.
+//  Background positioning requires four things (see `Venue.kt`). These tests cover the
+//  two that fail silently: with either missing, position updates stop within minutes of
+//  the screen locking and nothing on screen says why. The other two are the manifest
+//  permissions and the visitor's grant; a build missing the permissions is reported in
+//  the SDK log.
 //
-//  There is no `DiagnosticsTests` here. Its iOS twin proves that the diagnostics log
-//  never carries a configured secret verbatim; the Android SDK records no log yet
-//  (README, "The diagnostics log"), so there is nothing to prove and the test is
-//  deferred with the gap rather than stubbed.
+//  There is no `DiagnosticsTests`. The Android SDK records no diagnostics log (README,
+//  "The diagnostics log"), so its iOS twin has nothing to assert against.
 //
 package io.proximi.blueiot.minimal
 
@@ -23,8 +21,8 @@ import org.junit.Test
 
 class BackgroundPositioningTests {
     /**
-     * Asked once: while Android has never been asked, and never after an answer — a
-     * refusal included, because nagging is how a refusal becomes an uninstall.
+     * The prompt is owed only while Android has never been asked. A refusal counts as an
+     * answer.
      */
     @Test
     fun locationIsAskedForOnlyWhileNeverAsked() {
@@ -33,24 +31,21 @@ class BackgroundPositioningTests {
     }
 
     /**
-     * The first of the two switches: the foreground service is what keeps the process
-     * alive off screen, and `relayOnly` leaves `serviceOptions` at `null` — a default
-     * is the easiest thing to fall back to unnoticed.
+     * The foreground service is what keeps the process alive off screen. `relayOnly`
+     * leaves `serviceOptions` at `null`, which is foreground-only positioning.
      */
     @Test
     fun theConfigurationKeepsRunningInTheBackground() {
         val options = requireNotNull(Venue.configuration("t").serviceOptions)
         assertTrue("the socket is read on the CPU, and Doze stops it", options.holdsWakeLock)
-        // A relay-only app scans nothing, so `location` is the only foreground-service
-        // type it can hold — and asking for `connectedDevice` would make
-        // `startForeground` throw on API 34+.
+        // A relay-only app scans nothing, so the `connectedDevice` foreground-service
+        // type is never warranted and the service's type mask stays `location` only.
         assertFalse(options.includesConnectedDeviceType)
     }
 
     /**
-     * The second switch, and the one with no symptom of its own: without it the
-     * facade pauses the relay provider a second after the screen locks, however
-     * healthy the service looks.
+     * Without `runsInBackground` the SDK pauses the relay provider whenever the app is
+     * backgrounded, however healthy the foreground service is. The default is `false`.
      */
     @Test
     fun theRelayConfigurationRunsInTheBackground() {

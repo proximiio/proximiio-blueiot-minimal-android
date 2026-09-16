@@ -2,18 +2,8 @@
 //  MainActivity.kt
 //  BlueiotMinimal
 //
-//  THE WHOLE APP, IN ORDER: ask for the wristband, ask for location, start the
-//  SDK, show the map.
-//
-//  Nothing else happens at this level. There is no navigation graph, no bottom bar,
-//  no onboarding flow and no settings — a visitor is handed a band, types the number
-//  on it once, answers one location prompt, and is on the map. Your product's screens
-//  go where `VenueMapScreen` is built.
-//
-//  One Activity, and no ViewModel: every piece of state below outlives nothing but a
-//  configuration change, which `rememberSaveable` and the stores already cover. The
-//  SDK's own session is what survives the screen going away, and it survives in the
-//  foreground service rather than in a holder of this app's.
+//  The single Activity. It shows, in order, the wristband prompt, the location prompt
+//  and the venue map. Product screens replace or sit beside `VenueMapScreen`.
 //
 package io.proximi.blueiot.minimal
 
@@ -42,9 +32,9 @@ import io.proximi.sdk.core.platform.PermissionRequestLauncher
 import io.proximi.sdk.permissions.ActivityResultPermissionLauncher
 
 class MainActivity : ComponentActivity() {
-    // Registered at construction time, which is what `registerForActivityResult`
-    // requires: the SDK is handed this in `Venue.start` so its own permission calls
-    // have somewhere to run.
+    // Constructed here because `registerForActivityResult` must be called before the
+    // Activity is STARTED. `Venue.start` hands it to the SDK for the SDK's own
+    // permission requests.
     private val permissionLauncher = ActivityResultPermissionLauncher(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,7 +50,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * First run asks for the wristband, then for location; every run after that goes
+ * Shows the wristband prompt and then the location prompt on first run. Later runs go
  * straight to the map.
  */
 @Composable
@@ -68,26 +58,22 @@ fun RootScreen(launcher: PermissionRequestLauncher) {
     val context = LocalContext.current
     val store = remember(context) { WristbandStore.preferences(context) }
 
-    // Read from the store on the first composition, so a returning visitor never sees
-    // the prompt.
     var wristband by remember { mutableStateOf(WristbandStore.load(store)) }
-    // Likewise read once. Android has no `notDetermined`, so the app keeps its own
-    // flag: this is `true` exactly until the first time `LocationPrompt` is answered.
+    // Android reports no "not determined" state for a runtime permission, so the app
+    // keeps its own flag. It is `true` until `LocationPrompt` has been answered once.
     var owesLocationAsk by remember { mutableStateOf(LocationPrompt.isOwed(LocationPrompt.hasBeenAsked(store))) }
     var venue by remember { mutableStateOf<Venue?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
 
-    // Keyed on the wristband: saving a different one re-runs this, and `follow()`
-    // re-points positioning at the new band without restarting the SDK or rebuilding
-    // the map. Held at `null` while the location ask is on screen, so the SDK — and
-    // the service it raises — starts only once that screen has been answered.
+    // Keyed on the wristband: a new id re-runs this and `follow()` re-attaches the relay
+    // provider without restarting the SDK. The key is `null` while the location prompt is
+    // on screen, so the SDK and its foreground service start only after it is answered.
     LaunchedEffect(if (owesLocationAsk) null else wristband) {
         val band = wristband ?: return@LaunchedEffect
         if (owesLocationAsk) return@LaunchedEffect
         try {
             val running = venue
             if (running != null) {
-                // Already running: only the band changed.
                 running.follow(band)
                 return@LaunchedEffect
             }

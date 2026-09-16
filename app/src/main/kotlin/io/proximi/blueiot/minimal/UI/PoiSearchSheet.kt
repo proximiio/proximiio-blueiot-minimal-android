@@ -2,17 +2,12 @@
 //  PoiSearchSheet.kt
 //  BlueiotMinimal
 //
-//  Search the venue's places; pick one, or pick several. The pick is the only thing
-//  that leaves here.
+//  The venue's place search. One sheet serves both the single-destination search and
+//  the multi-select visit planner; the row accessory and the way the sheet closes are
+//  parameters. The picked places are the only output.
 //
-//  There is one search in this app and this is it. "Where to?" and "plan my
-//  afternoon" are the same list, the same matching and the same rows — only the row's
-//  accessory and the way the sheet closes differ, which is a parameter rather than a
-//  second screen.
-//
-//  This is where a real product diverges first — categories, favourites, amenity
-//  icons, "nearest toilet". All of it belongs in this file's place, and none of it
-//  belongs in the SDK.
+//  Product-specific search features, such as categories, favourites or amenity icons,
+//  belong in this file rather than in the SDK.
 //
 package io.proximi.blueiot.minimal
 
@@ -42,10 +37,10 @@ import androidx.compose.ui.unit.dp
 import io.proximi.map.core.MapLevelFormat
 
 /**
- * @param allowsMultiple several places instead of one, in the order they are tapped,
- *   because that order is the order the visitor walks.
- * @param adds adding to a visit that is already running rather than planning a new
- *   one. Same list, same multi-select, the words that screen needs.
+ * @param allowsMultiple pick several places instead of one. The tap order is the order
+ *   they are walked.
+ * @param adds add to a running visit rather than plan a new one. Changes the wording
+ *   only.
  */
 @Composable
 fun PoiSearchSheet(
@@ -96,8 +91,8 @@ fun PoiSearchSheet(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(poi.title, style = MaterialTheme.typography.bodyLarge)
-                        // `MapLevelFormat` is the map library's — the same rendering
-                        // its own floor picker uses, so "1" and "1.5" read the same in
+                        // `MapLevelFormat` is the map library's own level rendering, the
+                        // one its floor picker uses, so "1" and "1.5" read the same in
                         // both places.
                         Text(
                             "Level ${MapLevelFormat.trimmed(poi.level)}",
@@ -122,7 +117,7 @@ fun PoiSearchSheet(
     }
 }
 
-/** Tapping a picked place again takes it back out, and the numbers close up. */
+/** Tapping a picked place again removes it, and the numbers close up. */
 private fun toggle(
     picked: MutableList<VenuePoi>,
     poi: VenuePoi,

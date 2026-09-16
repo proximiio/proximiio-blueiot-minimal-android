@@ -2,46 +2,39 @@
 //  VenueConfiguration.kt
 //  BlueiotMinimal
 //
-//  The whole of the app's configuration: three credentials and one survey value,
-//  injected through the git-ignored secrets.properties (plus the tracked
-//  venue.properties) into BuildConfig and read here once. None of them is editable at
-//  runtime, because a visitor has no business editing them and this app has no settings
-//  screen for staff to get lost in.
+//  The app's build-time configuration, read from BuildConfig: three credentials from
+//  the git-ignored secrets.properties and one venue value from the tracked
+//  venue.properties. No value is editable at runtime.
 //
 package io.proximi.blueiot.minimal
 
 object VenueConfiguration {
-    /** Proximi.io application token — `PROXIMIIO_APPLICATION_TOKEN`. */
+    /** Proximi.io application token, from `PROXIMIIO_APPLICATION_TOKEN`. */
     val token: String? = value(BuildConfig.PROXIMIIO_APPLICATION_TOKEN)
 
     /**
-     * The cloud relay's address as typed — `BLUEIOT_CLOUD_RELAY_URL`. A bare host is
-     * fine. Kept as text so the SDK's `BlueiotCloudRelayEndpoint` does the one
-     * normalisation into `https://…` and `wss://…/stream`.
+     * Cloud relay address, from `BLUEIOT_CLOUD_RELAY_URL`. A bare host is accepted. Kept
+     * as text so `BlueiotCloudRelayEndpoint.fromText` performs the single normalisation
+     * into `https://…` and `wss://…/stream`.
      */
     val relayHost: String? = value(BuildConfig.BLUEIOT_CLOUD_RELAY_URL)
 
     /**
-     * The relay's stream token, sent as `Authorization: Bearer` —
-     * `BLUEIOT_CLOUD_RELAY_TOKEN`. Without it the relay answers HTTP 401.
+     * Relay stream token, from `BLUEIOT_CLOUD_RELAY_TOKEN`, sent as
+     * `Authorization: Bearer`. The relay answers HTTP 401 without it.
      */
     val relayToken: String? = value(BuildConfig.BLUEIOT_CLOUD_RELAY_TOKEN)
 
     /**
-     * Which floor number the venue's Blueiot engine calls the ground floor —
-     * `BLUEIOT_GROUND_FLOOR_NO`. Not required and not a credential: empty means 0,
-     * which is the engine numbering storeys exactly the way Proximi.io does, and is
-     * the only case that needs no value at all. See [Venue.follow].
+     * The engine floor number for the venue's ground floor, from
+     * `BLUEIOT_GROUND_FLOOR_NO`. Not a credential and not required: empty means 0, which
+     * is an engine numbering floors the way Proximi.io does. See [Venue.follow].
      */
     val groundFloorNumber: Int = value(BuildConfig.BLUEIOT_GROUND_FLOOR_NO)?.toIntOrNull() ?: 0
 
-    // On iOS the two credentials are also handed to the diagnostics recorder, which
-    // strips them wherever they appear in the log. The Android SDK records no log yet
-    // (README, "The diagnostics log"), so there is nothing here to hand them to.
-
     /**
-     * Which keys are still empty, in one sentence, or `null` when none are. Only the
-     * three the app cannot run without; the survey value has an honest default.
+     * The keys that are still empty, as one sentence, or `null` when none are. Covers
+     * the three required credentials only.
      */
     val missing: String?
         get() {
@@ -56,8 +49,8 @@ object VenueConfiguration {
         }
 
     /**
-     * Thrown rather than crashing, so a fresh clone with no secrets file still runs
-     * and says what is missing.
+     * Thrown when a required credential is empty, so a clone with no secrets file runs
+     * and reports the missing key instead of crashing.
      */
     class SetupIncomplete : Exception(missing ?: "Configuration is incomplete.")
 

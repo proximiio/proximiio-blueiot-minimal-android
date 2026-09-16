@@ -2,10 +2,9 @@
 //  WristbandIdTests.kt
 //  BlueiotMinimalTests
 //
-//  The spelling rule and its persistence, and nothing else. These two are worth
-//  testing because they fail silently: a wristband read one way here and another way
-//  by the relay matches nothing, and the symptom is "the dot never arrives" rather
-//  than an error. The screens are not tested — they have no logic to get wrong.
+//  The wristband spelling rule and its persistence. Both fail silently: an id read one
+//  way here and another way by the relay matches no tag, and the symptom is that no
+//  position arrives. The screens have no logic and are not tested.
 //
 package io.proximi.blueiot.minimal
 
@@ -25,15 +24,15 @@ import java.util.UUID
 class WristbandIdTests {
     // MARK: - Spelling
 
-    /** The number printed on a real band, as it reads. */
+    /** A bare number is decimal, as printed on the band. */
     @Test
     fun bareNumberIsDecimal() {
         assertEquals(1_234_567_890UL, WristbandId.of("1234567890")?.value)
-        // And specifically NOT hex: 0x1234567890 would be 78_187_493_520.
+        // Not hexadecimal: 0x1234567890 would be 78_187_493_520.
         assertEquals(5555UL, WristbandId.of("5555")?.value)
     }
 
-    /** The three spellings of one tag all name it. */
+    /** The three spellings of one tag all resolve to it. */
     @Test
     fun everySpellingOfOneTagAgrees() {
         val decimal = WristbandId.of("7001")
@@ -42,7 +41,7 @@ class WristbandIdTests {
         assertEquals(7001UL, decimal?.value)
     }
 
-    /** Letters can only be hex, whatever case they arrive in. */
+    /** Text containing letters is hexadecimal, in either case. */
     @Test
     fun lettersAreHex() {
         assertEquals(1_234_567_890UL, WristbandId.of("499602D2")?.value)
@@ -50,13 +49,13 @@ class WristbandIdTests {
         assertEquals(1_234_567_890UL, WristbandId.of("0X499602D2")?.value)
     }
 
-    /** Pasted ids carry whitespace; that is not a typo. */
+    /** Surrounding whitespace, as a pasted id carries, is ignored. */
     @Test
     fun surroundingWhitespaceIsIgnored() {
         assertEquals(1_234_567_890UL, WristbandId.of("  1234567890\n")?.value)
     }
 
-    /** Whatever spelling came in, one goes out — decimal, the band's own. */
+    /** The canonical spelling is decimal, whatever spelling came in. */
     @Test
     fun canonicalSpellingIsDecimal() {
         assertEquals("7001", WristbandId.of("0x1B59")?.canonical)
@@ -76,13 +75,12 @@ class WristbandIdTests {
 }
 
 /**
- * The store is `SharedPreferences`, which is the one Android API in the app's logic —
- * so this half runs under Robolectric and the spelling half above does not.
+ * The store is `SharedPreferences`, the one Android API in the app's logic, so this
+ * class runs under Robolectric and the spelling tests above do not.
  */
 @RunWith(RobolectricTestRunner::class)
-// SDK 35, not the newest: Robolectric's API 36 image needs Java 21 and this project
-// builds on 17. `SharedPreferences` is the whole of what these exercise, and it has
-// not moved.
+// SDK 35, not 36: Robolectric's API 36 image requires Java 21 and this project builds on
+// 17. These tests exercise `SharedPreferences` only.
 @Config(sdk = [35])
 class WristbandStoreTests {
     @Test
@@ -97,8 +95,8 @@ class WristbandStoreTests {
     }
 
     /**
-     * A value an earlier build wrote in another spelling still names the same tag,
-     * because loading re-reads it through the rule instead of trusting characters.
+     * Loading re-parses the stored text through the rule, so a spelling an earlier build
+     * wrote still names the same tag.
      */
     @Test
     fun aStoredForeignSpellingStillNamesTheSameTag() {

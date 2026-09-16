@@ -2,23 +2,20 @@
 //  Venue.kt
 //  BlueiotMinimal
 //
-//  THE WHOLE OF THIS APP'S POSITIONING.
+//  All of this app's positioning: it starts the SDK and attaches the BlueIoT cloud
+//  relay position provider for one wristband. The venue's anchors locate the wristband
+//  and report to the relay; the phone scans nothing.
+//  `ProximiioConfiguration.relayOnly(token, serviceOptions)` is the preset for that
+//  shape of app. It turns the SDK's iBeacon, Eddystone and UWB sources off, and native
+//  location with them.
 //
-//  The venue's anchors locate the wristband and report to a Proximi.io cloud relay;
-//  the phone scans nothing. `ProximiioConfiguration.relayOnly(token, serviceOptions)`
-//  is the preset for exactly that shape of app — it turns the SDK's own iBeacon,
-//  Eddystone and UWB sources off, and native location with them, so there is no radio
-//  to tune. Everything else here is two calls: start the SDK, attach the relay provider.
-//
-//  POSITIONING CARRIES ON IN A POCKET. That takes four things, and each one missing
-//  looks the same — the dot stops within minutes of the screen locking, as if the
-//  relay had died: `serviceOptions` on the SDK configuration and `runsInBackground`
-//  on the relay provider's (both below); the foreground-service permissions
-//  (`AndroidManifest.xml`); and a location grant (`LocationPrompt`). The SDK's own
-//  background guide puts the first two like this: "These are two switches, not one…
-//  Set only the first and the service sits there healthy while the facade pauses the
-//  relay provider a second after the screen locks. Set only the second and Doze
-//  freezes the process, socket and all."
+//  Positioning while the app is backgrounded requires all four of: `serviceOptions` on
+//  the SDK configuration and `runsInBackground = true` on the relay configuration (both
+//  below), the foreground-service permissions (`AndroidManifest.xml`), and a location
+//  grant (`LocationPrompt`). Any one of them missing stops position updates within
+//  minutes of the screen locking. `serviceOptions` keeps the process alive;
+//  `runsInBackground` stops the SDK pausing the relay provider when the app
+//  backgrounds.
 //
 package io.proximi.blueiot.minimal
 
@@ -44,37 +41,30 @@ import kotlinx.coroutines.launch
 
 class Venue private constructor(
     /**
-     * The started SDK. `VenueMapScreen` hands this to the map, which reads the venue,
-     * the floors and the live position off it.
+     * The started SDK. `VenueMapScreen` passes it to the map session, which reads the
+     * venue, the floors and the live position from it.
      */
     val sdk: Proximiio,
 ) {
-    /**
-     * So a second [follow] can take the first one down. Only the name is kept —
-     * detaching is by name.
-     */
+    /** The attached provider's name, so a second [follow] can detach it. */
     private var attachedProvider: String? = null
 
     /**
-     * The one coroutine scope this app owns, and it belongs to the visit rather than to a
-     * screen: the map comes and goes with the Activity, and a note about the gallery the
-     * visitor has just walked into is due whether or not anything is on screen. Cancelled
-     * in [stop], which is the only thing that ends the visit.
+     * The scope for work that outlives the map screen, such as the place notifications.
+     * Cancelled in [stop].
      */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
-     * Points positioning at one wristband.
+     * Attaches the relay position provider for one wristband.
      *
-     * Safe to call again with a different band: the previous provider is detached
-     * first, so changing the id is a re-attach rather than a restart.
+     * Calling it again with a different id detaches the previous provider first, so
+     * changing the wristband is a re-attach rather than an SDK restart.
      *
-     * WHICH STOREY A FIX LANDS ON is not this app's arithmetic. An engine floor
-     * number *is* the Proximi.io floor level, and the SDK already syncs every floor
-     * with its level, so it derives the number-to-floor table itself and tells you
-     * in the log when a fix names a number the venue has no floor for. Pass no
-     * `floorNoMap` and none of that happens: a table you supply switches derivation
-     * off.
+     * No `floorNoMap` is passed. An engine floor number is the Proximi.io floor level,
+     * and the SDK syncs every floor with its level, so it derives the number-to-floor
+     * table itself; a table supplied here switches that derivation off. A fix naming a
+     * number the venue has no floor for is reported in the SDK log.
      */
     suspend fun follow(wristband: WristbandId) {
         attachedProvider?.let {
@@ -89,13 +79,11 @@ class Venue private constructor(
                 endpoint = endpoint,
                 token = VenueConfiguration.relayToken,
                 tagId = wristband.canonical,
-                // Without this the SDK pauses the provider on backgrounding, whatever
-                // the process itself is allowed to do.
+                // Default `false`, which pauses the provider whenever the app is
+                // backgrounded, whatever the process itself is allowed to do.
                 runsInBackground = true,
-                // The one thing the SDK cannot know: this venue's LocalSense calls the
-                // ground floor 1 where Proximi.io calls it level 0. Delete this line,
-                // and `BLUEIOT_GROUND_FLOOR_NO` with it, the day the deployment is
-                // renumbered.
+                // The only floor value the SDK cannot derive: this venue's LocalSense
+                // engine numbers the ground floor 1 where Proximi.io uses level 0.
                 engineGroundFloorNumber = VenueConfiguration.groundFloorNumber,
             )
 
@@ -105,12 +93,12 @@ class Venue private constructor(
     }
 
     /**
-     * Re-reads the grants after the app has run its own permission dialog.
+     * Re-reads the grants after the app has run a permission dialog of its own.
      *
-     * Android has no authorization-changed callback, so the SDK sees a grant it asked
-     * for itself and nothing else. Everything downstream of a permission change
-     * follows from this call, including raising the foreground service that could not
-     * be raised before the grant.
+     * Android reports no authorization-changed callback, so the SDK sees only the grants
+     * it requested itself. Everything downstream of a permission change follows from
+     * this call, including starting the foreground service that could not be started
+     * before the grant.
      */
     suspend fun refreshPermissions() {
         sdk.refreshPermissions()
@@ -119,16 +107,15 @@ class Venue private constructor(
     /**
      * Starts the place notifications (`GeofenceNotifier`).
      *
-     * Nothing extra is needed for them to arrive with the screen off: the geofences are
-     * evaluated in the very process the foreground service already keeps alive for the
-     * pocket, so a note reaches the lock screen for the same four reasons the dot keeps
-     * moving. Off a scope of this venue's, so it stops when the visit does.
+     * Geofences are evaluated in the process the foreground service keeps alive, so the
+     * notifications need no further component to arrive with the screen off. The
+     * collection runs on this venue's scope and ends with [stop].
      */
     private fun notifyOnPlaceChanges(context: Context) {
         scope.launch { GeofenceNotifier(context).collectFrom(sdk) }
     }
 
-    /** Called when the screen holding this venue is gone for good. */
+    /** Cancels the venue's scope and stops the SDK. */
     suspend fun stop() {
         scope.cancel()
         sdk.stop()
@@ -136,8 +123,8 @@ class Venue private constructor(
 
     companion object {
         /**
-         * The SDK, configured for this shape of app. Apart from `start` so a test can
-         * read the options off it — `serviceOptions` defaults to `null`, which is
+         * The SDK configuration for this app. Separate from [start] so a test can read
+         * the options. `relayOnly` leaves `serviceOptions` at `null`, which is
          * foreground-only positioning.
          */
         fun configuration(token: String): ProximiioConfiguration =
@@ -149,42 +136,39 @@ class Venue private constructor(
                         notificationChannelDescription = "Shown while the venue is placing you on the map.",
                         notificationTitle = "Venue Map",
                         notificationText = "Following your wristband around the venue.",
-                        // A relay-only app scans nothing — no BLE, no connected device —
-                        // so `location` is the only foreground-service type it can hold,
-                        // and it is the only one whose permission the manifest declares.
-                        // Asking for `connectedDevice` here would make `startForeground`
-                        // throw on API 34+.
+                        // A relay-only app scans nothing, so the `connectedDevice`
+                        // foreground-service type is never warranted. The flag is the
+                        // host's opt-out and the SDK never derives a type back on, so
+                        // the service's type mask stays `location` only, which is the
+                        // one type whose permission this app's manifest declares.
                         includesConnectedDeviceType = false,
-                        // The position source is a socket, and a socket is read on the
-                        // CPU: in Doze the frame waits for the next maintenance window,
-                        // which is the difference between a dot that moves as the
-                        // visitor walks and one that jumps every ten minutes. The lock
-                        // lives only as long as the service, and the SDK's 30-minute
-                        // timeout is the safety net under it.
+                        // The position source is a socket and a socket is read on the
+                        // CPU. In Doze the frame would wait for the next maintenance
+                        // window. The lock is released with the service and is bounded
+                        // by `ProximiioServiceOptions.wakeLockTimeoutMillis`, 30 minutes
+                        // by default.
                         holdsWakeLock = true,
                     ),
             )
 
         /**
-         * Asks for location, authenticates, starts, and downloads the venue.
+         * Requests permissions, authenticates, starts positioning and downloads the
+         * venue.
          *
-         * Four awaits, in this order, and none of them is optional:
-         *  1. [requestPermissions] is the SDK's own read of the grants. It prompts only
-         *     while Android has never been asked, so the ask `LocationPrompt` already
-         *     ran is the only one a visitor sees, and a returning visitor pays nothing
-         *     here.
-         *  2. [authenticate] validates the token and runs the first sync — which is
-         *     what fills the floors the SDK resolves relay fixes against.
-         *  3. [Proximiio.start] starts positioning. Under `relayOnly` that means the
-         *     engine and the foreground service; the fixes arrive once a provider is
-         *     attached.
-         *  4. [loadRouteNetwork] downloads the venue's GeoJSON: the POIs this app
-         *     searches *and* the path network `computeRoute` walks, cached locally, so
-         *     it is the one network call wayfinding needs.
+         * The four suspending calls run in this order, and none is optional:
+         *  1. [requestPermissions] reads the grants. It prompts only while Android has
+         *     never been asked, so `LocationPrompt` is the only prompt a visitor sees.
+         *  2. [Proximiio.authenticate] validates the token and runs the first sync,
+         *     which fills the floors relay fixes are resolved against.
+         *  3. [Proximiio.start] starts positioning and, with `serviceOptions` set, the
+         *     foreground service. Fixes arrive once a provider is attached.
+         *  4. [loadRouteNetwork] downloads the venue GeoJSON, which holds both the POIs
+         *     this app searches and the path network [computeRoute] uses. It is cached
+         *     locally and is the only network call wayfinding needs.
          *
-         * The place notifications are attached between 3 and 4, because the geofence
-         * stream exists from the moment the SDK is started and a transition can arrive
-         * while the route network is still downloading.
+         * The place notifications are attached between steps 3 and 4: the geofence
+         * stream exists from `start()`, and a transition can arrive while the route
+         * network is still downloading.
          */
         suspend fun start(
             context: Context,

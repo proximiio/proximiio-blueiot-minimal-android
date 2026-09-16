@@ -2,15 +2,13 @@
 //  GuidanceLine.kt
 //  BlueiotMinimal
 //
-//  TURN-BY-TURN, IN ONE LINE.
+//  Renders one `RouteGuidance` as a single line of text. The map library follows the
+//  route it is drawing and republishes a `RouteGuidance` on every position: the next
+//  manoeuvre, the distance left to it, whether the visitor is off route, and whether
+//  they have arrived.
 //
-//  The map library follows whatever route it is drawing and republishes a
-//  `RouteGuidance` on every fix — which manoeuvre is next, how far is still to walk
-//  to it, whether the visitor left the corridor, whether they arrived. One value
-//  rather than six properties, so a composable that reads four of them recomposes once.
-//
-//  A single route and a journey leg produce the same value, which is why this is a
-//  composable of its own rather than two copies of the same sentence.
+//  A single route and a journey leg produce the same value, so both screens use this
+//  composable.
 //
 package io.proximi.blueiot.minimal
 
@@ -36,16 +34,16 @@ fun GuidanceLine(guidance: RouteGuidance?) {
 
 object GuidanceLine {
     /**
-     * One sentence for one fix, in the order a walker needs them: arrival ends the
-     * walk, leaving the route interrupts it, and otherwise it is the turn in hand
-     * and the metres still to walk to it.
+     * One sentence for one position, in priority order: arrival, off route, then the
+     * next manoeuvre and the distance to it.
      *
-     * `distanceToManoeuvreMeters` is the number that shrinks —
-     * `RouteManoeuvre.legMeters` is the planned length of the leg and never moves.
+     * `distanceToManoeuvreMeters` is the remaining distance to the next manoeuvre.
+     * `RouteManoeuvre.legMeters` is the planned length of the leg and does not change.
      *
-     * Leaving the route is said, not acted on. The flag latches after three fixes
-     * beyond twelve metres and clears itself on the first fix back inside, so a
-     * detector of this app's own could only disagree with the one already running.
+     * Being off route is reported, not acted on. `RouteGuidance.isOffRoute` latches
+     * after `RouteFollowRules.offRouteFixes` consecutive positions beyond
+     * `offRouteMeters` (3 and 12 m in `RouteFollowRules.VENUE_WALK`) and clears on the
+     * first position back inside, so this app adds no detector of its own.
      */
     fun sentence(guidance: RouteGuidance): String {
         if (guidance.hasArrived) return "You have arrived."
@@ -56,9 +54,8 @@ object GuidanceLine {
 
     /**
      * `RouteManoeuvre.Kind` carries no display strings, and neither does the SDK's
-     * `RouteInstruction.Kind` underneath it: a library that shipped English would be
-     * shipping the wrong language to most venues. These sentences are the app's, and
-     * this is the one function to reach `stringResource` into.
+     * `RouteInstruction.Kind` beneath it, so these sentences are the app's. This is the
+     * one function to localise.
      */
     fun instruction(kind: RouteManoeuvre.Kind?): String =
         when (kind) {
@@ -68,8 +65,8 @@ object GuidanceLine {
             RouteManoeuvre.Kind.TurnRight -> "Turn right"
             RouteManoeuvre.Kind.TurnSlightRight -> "Bear right"
             RouteManoeuvre.Kind.TurnSharpRight -> "Turn sharp right"
-            // The changer the route actually uses, so the sentence and the pin on the
-            // map name the same thing: "elevator", "escalator", "staircase", "ramp".
+            // The level changer the route uses, so the sentence and the map pin name the
+            // same feature: "elevator", "escalator", "staircase", "ramp".
             is RouteManoeuvre.Kind.LevelChange ->
                 "Take the ${kind.change.featureType} to level ${MapLevelFormat.trimmed(kind.change.toLevel)}"
             RouteManoeuvre.Kind.Arrive -> "Arrive"

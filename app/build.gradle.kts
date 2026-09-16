@@ -6,13 +6,13 @@ plugins {
 }
 
 /**
- * The whole of the app's configuration, read at build time.
+ * The app's build-time configuration.
  *
  * Three credentials come from the git-ignored root `secrets.properties` (see
- * `secrets.example.properties`); one survey value comes from the tracked
- * `venue.properties` next to it. A Gradle property of the same name wins over neither —
- * it is the fallback, which is what lets CI build with nothing on disk. Empty means
- * "not configured", and the app must still build and say so on screen rather than crash.
+ * `secrets.example.properties`); one venue value comes from the tracked
+ * `venue.properties` next to it. A Gradle property of the same name is the fallback,
+ * which is what lets CI build with neither file on disk. An empty value means "not
+ * configured"; the app still builds and reports it on screen rather than crashing.
  */
 val secrets: Properties = properties("secrets.properties")
 val venue: Properties = properties("venue.properties")
@@ -44,14 +44,12 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        // Read once by `VenueConfiguration`, and editable nowhere at runtime — a visitor
-        // has no business editing them and this app has no settings screen for staff to
-        // get lost in.
+        // Read once by `VenueConfiguration`. None of them is editable at runtime.
         buildConfigField("String", "PROXIMIIO_APPLICATION_TOKEN", quoted(value("PROXIMIIO_APPLICATION_TOKEN")))
         buildConfigField("String", "BLUEIOT_CLOUD_RELAY_URL", quoted(value("BLUEIOT_CLOUD_RELAY_URL")))
         buildConfigField("String", "BLUEIOT_CLOUD_RELAY_TOKEN", quoted(value("BLUEIOT_CLOUD_RELAY_TOKEN")))
-        // The venue's survey rather than its credentials — see venue.properties, which
-        // carries this venue's working value in the tracked file.
+        // The venue's survey value rather than a credential; see venue.properties, which
+        // is tracked and carries this venue's working value.
         buildConfigField("String", "BLUEIOT_GROUND_FLOOR_NO", quoted(value("BLUEIOT_GROUND_FLOOR_NO")))
     }
 
@@ -78,32 +76,29 @@ android {
     testOptions {
         unitTests {
             isReturnDefaultValues = true
-            // Robolectric, for the two stores that are `SharedPreferences` and nothing else.
+            // Robolectric, for the two stores that use `SharedPreferences`.
             isIncludeAndroidResources = true
         }
     }
 
     lint {
-        // An example that ships a lint baseline is an example that taught you to ship
-        // one, so there is none: everything lint has to say about this app is fixed.
+        // No lint baseline: everything lint reports about this app is fixed.
         abortOnError = true
         warningsAsErrors = true
         checkDependencies = false
         disable +=
             setOf(
                 // "A newer version of X is available" is a fact about the day the build
-                // ran, not about this code. As an error it would break CI the morning
-                // somebody else cuts a release, and the versions here are pinned on
-                // purpose — the README quotes them.
+                // ran. As an error it would break CI whenever a dependency is released,
+                // and the versions here are pinned; the README quotes them.
                 "AndroidGradlePluginVersion",
                 "GradleDependency",
                 "NewerVersionAvailable",
                 // targetSdk is 36 deliberately; see gradle/libs.versions.toml.
                 "OldTargetApi",
-                // It says `res/mipmap-anydpi-v26` could drop the `-v26` at minSdk 26.
-                // The resource merger disagrees — without the qualifier it does not
-                // pick the adaptive icon up at all — and the merger is the one that
-                // has to be right.
+                // It reports that `res/mipmap-anydpi-v26` could drop the `-v26` at
+                // minSdk 26. Without the qualifier the resource merger does not pick the
+                // adaptive icon up at all.
                 "ObsoleteSdkInt",
             )
     }
@@ -116,7 +111,7 @@ android {
 }
 
 dependencies {
-    // The SDK, the Blueiot cloud-relay client it positions from, and the venue map.
+    // The SDK, the BlueIoT cloud-relay client it positions from, and the venue map.
     implementation(libs.proximiio.sdk)
     implementation(libs.proximiio.sdk.blueiot)
     implementation(libs.proximiio.map)

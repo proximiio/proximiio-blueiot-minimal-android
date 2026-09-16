@@ -2,16 +2,15 @@
 //  JourneyBar.kt
 //  BlueiotMinimal
 //
-//  A VISIT: several places, in an order, one leg at a time.
+//  The visit UI: which stop is in hand, what is left of the visit, and the controls
+//  that change the plan.
 //
-//  `JourneyNavigator` owns the walking. It computes each leg from the visitor's live
-//  position, draws and follows it through the same session the map is already using,
-//  re-routes it when they wander, and measures what is left. None of that is here.
+//  `JourneyNavigator` owns the routing. It computes each leg from the live position,
+//  draws and follows it through the same session as the map, re-routes it when the
+//  visitor leaves the leg, and measures what remains. None of that is in this file.
 //
-//  What is here is the visitor's side: which stop is in hand, how much of the visit
-//  is left, and the handful of buttons that change the plan. The library never
-//  reorders a visit on its own, and neither does this screen — it proposes, and a tap
-//  applies.
+//  Neither the library nor this screen reorders a visit on its own: `proposeOrder`
+//  measures an order and `apply` is what applies it.
 //
 package io.proximi.blueiot.minimal
 
@@ -83,7 +82,7 @@ fun JourneyBar(
     places: List<VenuePoi>,
     store: SharedPreferences,
     modifier: Modifier = Modifier,
-    /** Called when the visit is over, so the map screen can put its search bar back. */
+    /** Called when the visit is over, so the map screen can restore its search bar. */
     onEnd: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -94,19 +93,19 @@ fun JourneyBar(
     val guidance by navigator.guidance.collectAsStateWithLifecycle()
     val position by session.position.collectAsStateWithLifecycle()
 
-    /** The names of the venue's amenity kinds, read once. */
+    /** The venue's amenity kind titles, read once. */
     var amenityTitles by remember { mutableStateOf(emptyMap<String, String>()) }
-    /** The detours on offer, named. Empty is survivable and shows no button. */
+    /** The detours on offer, named. An empty list shows no button. */
     var detours by remember { mutableStateOf(emptyList<Detour>()) }
     var isShowingPlan by remember { mutableStateOf(false) }
 
     LaunchedEffect(navigator) {
-        // Starting is one call. Nothing is drawn until the first fix, because the leg
-        // is computed from where the visitor actually is.
+        // Nothing is drawn until the first position, because the leg is computed from
+        // where the visitor is.
         navigator.start()
-        // The one extra download in the app, and only for a visitor who started a
-        // visit. Failing it costs the detours and nothing else. The SDK has no
-        // `amenity(id:)` row read on Android, so the app builds the map once.
+        // The only extra download in the app, and only for a visitor who started a visit.
+        // A failure costs the detours and nothing else. The SDK exposes no
+        // single-amenity lookup on Android, so the app builds the map once.
         amenityTitles =
             runCatching { session.sdk?.amenities().orEmpty() }
                 .getOrDefault(emptyList())
@@ -114,13 +113,13 @@ fun JourneyBar(
                 .toMap()
     }
 
-    // Re-offered as the visitor moves: "nearest" is measured from where they are.
+    // Re-offered as the visitor moves: "nearest" is measured from the live position.
     LaunchedEffect(position?.coordinate, amenityTitles, places) {
         detours = offers(places, position?.coordinate, amenityTitles)
     }
 
-    // `Journey` carries each stop's state, so this one line is the whole of "the
-    // visit survived the app being closed".
+    // `Journey` carries each stop's state, so saving it on every change is the whole of
+    // restoring a visit across launches.
     LaunchedEffect(plan) { JourneyStore.save(plan, store) }
 
     DisposableEffect(navigator) { onDispose { navigator.end() } }
@@ -134,11 +133,10 @@ fun JourneyBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // The stop in hand, and what is left of the visit.
-            //
-            // `overview` is measured as soon as the plan changes, so the total is a
-            // total rather than a number that fills in as the visitor walks — and a
-            // leg routing refused is named rather than quietly left out of the sum.
+            // `overview` is re-measured as soon as the plan changes, so the totals are
+            // complete rather than filled in as the visitor walks. A leg that could not
+            // be routed is listed in `unreachableStopIds` rather than left out of the
+            // sum.
             val stop = navigator.activeStop
             when {
                 stop != null ->
@@ -155,9 +153,8 @@ fun JourneyBar(
                                     add("${overview.remainingStops.size} to go")
                                     add("${overview.remainingMeters.roundToInt()} m")
                                     add("${max(1, (overview.etaSeconds / 60).roundToInt())} min")
-                                    // The library never drops a stop it could not route
-                                    // to, so saying so is this app's job rather than a
-                                    // silently shorter list.
+                                    // The library keeps a stop it could not route to, so
+                                    // the count is shown rather than silently dropped.
                                     if (overview.unreachableStopIds.isNotEmpty()) {
                                         add("${overview.unreachableStopIds.size} unreachable")
                                     }
@@ -175,10 +172,9 @@ fun JourneyBar(
                 navigator.isFinished ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Your visit is done.", modifier = Modifier.weight(1f))
-                        // Adding a stop revives a finished visit — the library makes
-                        // the new one active and draws its leg — so the way into the
-                        // plan, and to the "+" in it, must not disappear with the last
-                        // stop.
+                        // Adding a stop revives a finished visit: the library makes the
+                        // new one active and draws its leg. The way into the plan must
+                        // therefore stay reachable after the last stop.
                         PlanButton { isShowingPlan = true }
                         TextButton(onClick = onEnd) { Text("Finish") }
                     }
@@ -197,9 +193,8 @@ fun JourneyBar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (navigator.hasArrived) {
-                    // The one thing a visit deliberately does not do by itself. A
-                    // visitor stands in front of an exhibit for a length of time nobody
-                    // can guess, so the rule is `Manual` and this is what moves them on.
+                    // `JourneyRules.advance` defaults to `Advance.Manual`, so arrival
+                    // does not move the visit on. This button calls `advance()`.
                     Button(onClick = { scope.launch { navigator.advance() } }) { Text("Continue") }
                 }
                 if (navigator.detourStop == null) {
@@ -235,9 +230,9 @@ private fun PlanButton(onClick: () -> Unit) {
 }
 
 /**
- * "Something else first." `detour(stop)` puts a stop in front of the one being walked
- * to and routes there now; the plan resumes afterwards from wherever the visitor ends
- * up, not from where they stepped out.
+ * `JourneyNavigator.detour(stop)` inserts a stop before the one being walked to and
+ * routes there immediately. The plan resumes from wherever the visitor ends up, not
+ * from where they left it.
  */
 @Composable
 private fun DetourMenu(
@@ -269,10 +264,10 @@ private data class Detour(
 )
 
 /**
- * WHICH kinds of place a venue has is the app's question — [VenuePoi.nearestByAmenity]
- * reads them off the venue's own data. WHAT each kind is called is the SDK's, from the
- * amenity catalogue. An id the catalogue cannot name is left out rather than shown as
- * a uuid, and this app keeps no titles of its own.
+ * Which amenity kinds a venue has comes from its own data
+ * ([VenuePoi.nearestByAmenity]). What each kind is called comes from the SDK's amenity
+ * catalogue. An id the catalogue cannot name is left out rather than shown as a uuid;
+ * this app keeps no titles of its own.
  */
 private fun offers(
     places: List<VenuePoi>,
@@ -288,7 +283,7 @@ private fun offers(
         }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Detour::title))
 }
 
-/** The plan itself: what is left, in what order, and the two ways to change it. */
+/** The plan: what is left, in what order, and the ways to change it. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun JourneyPlanSheet(
@@ -303,15 +298,14 @@ private fun JourneyPlanSheet(
     var proposal by remember { mutableStateOf<JourneyOrderProposal?>(null) }
     var showsWholePlan by remember { mutableStateOf(false) }
     var isAdding by remember { mutableStateOf(false) }
-    /** What the last "+" could not add. Said once, and replaced by the next one. */
+    /** What the last "+" could not add. Replaced by the next one. */
     var note by remember { mutableStateOf<String?>(null) }
 
     val reorderable = navigator.reorderableStops
 
-    // Measures every walk between the remaining stops and returns a value; it never
-    // applies itself. Re-measured whenever those stops change, because a proposal
-    // describes the order it was measured against and `apply` ignores one that no
-    // longer does — a button that silently does nothing is worse than no button.
+    // `proposeOrder` measures every walk between the remaining stops and returns a
+    // proposal; it never applies itself. It is re-measured whenever those stops change,
+    // because `apply` ignores a proposal that no longer describes the journey.
     LaunchedEffect(reorderable.map { it.id }) { proposal = navigator.proposeOrder() }
 
     Column(
@@ -348,10 +342,9 @@ private fun JourneyPlanSheet(
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 
         Text("Still to walk", style = MaterialTheme.typography.labelLarge)
-        // SwiftUI hands `.onMove` and an edit button out for nothing; Compose has no
-        // equivalent, so the drag is the app's. The rows *are*
-        // `JourneyNavigator.reorderableStops` — the list `move(stopId, toIndex)`
-        // indexes into — so the app still holds no second copy of which stops may move.
+        // Compose has no `.onMove`, so the drag is the app's. The rows are
+        // `JourneyNavigator.reorderableStops`, the list `move(stopId, toIndex)` indexes
+        // into, so the app holds no second copy of which stops may move.
         ReorderableStops(
             stops = reorderable,
             label = { label(it, overview.unreachableStopIds) },
@@ -367,9 +360,8 @@ private fun JourneyPlanSheet(
 
         HorizontalDivider()
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Opt in, and off by default: the leg in hand is what a visitor is
-            // walking, and the rest of the afternoon under it is a choice rather than
-            // a default.
+            // Off by default. The overlay draws the rest of the plan under the leg in
+            // hand.
             Text("Show the whole plan on the map", modifier = Modifier.weight(1f))
             Switch(
                 checked = showsWholePlan,
@@ -383,9 +375,8 @@ private fun JourneyPlanSheet(
     }
 
     // The same search sheet the visit was planned in. `add` puts each pick after
-    // everything still to be walked, leaving the leg in hand alone, and answers
-    // `false` for one the plan already holds — which is said rather than dropped,
-    // because a place that did not appear is a bug from here.
+    // everything still to be walked and leaves the leg in hand alone. It returns `false`
+    // for a place the plan already holds, which is reported rather than dropped.
     if (isAdding) {
         ModalBottomSheet(onDismissRequest = { isAdding = false }) {
             PoiSearchSheet(pois = places, allowsMultiple = true, adds = true) { picked ->
@@ -401,7 +392,7 @@ private fun JourneyPlanSheet(
 
 /**
  * Drag a row to move it. The index it lands on is the index
- * `JourneyNavigator.move(stopId, toIndex)` wants, which is why the rows are a plain
+ * `JourneyNavigator.move(stopId, toIndex)` takes, which is why the rows are a plain
  * column of one fixed height rather than a lazy list of measured ones.
  */
 @Composable

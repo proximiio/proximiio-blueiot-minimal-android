@@ -2,12 +2,9 @@
 //  VenuePoi.kt
 //  BlueiotMinimal
 //
-//  One place a visitor can search for and be routed to.
-//
-//  Built from `Proximiio.features()` — the SDK's own venue model, read out of its
-//  local cache, which `Venue.start` filled with `loadRouteNetwork()`. There is no
-//  second download and no app-side place model beyond these four fields; add to it
-//  when your product needs an opening time or a photo, not before.
+//  A place a visitor can search for and be routed to, built from `Proximiio.features()`.
+//  That reads the SDK's local cache, which `Venue.start` filled with
+//  `loadRouteNetwork()`; it is not a second download.
 //
 package io.proximi.blueiot.minimal
 
@@ -20,23 +17,22 @@ data class VenuePoi(
     val id: String,
     val title: String,
     val coordinate: ProximiioCoordinate,
-    /** The floor it is on. `computeRoute` takes this as `toLevel`. */
+    /** The floor level. `computeRoute` takes this as `toLevel`. */
     val level: Double,
     /**
-     * What kind of place the venue says this is, and `null` when it says nothing.
-     * A Proximi.io amenity id is `<category>:<amenity>` — the only thing in the
-     * data that tells a toilet from an exhibit.
+     * The venue's amenity id for this place, or `null` when it has none. A Proximi.io
+     * amenity id has the form `<category>:<amenity>`.
      */
     val amenityId: String?,
 ) {
     companion object {
-        /** Every place in the venue, alphabetically. */
+        /** Every place in the venue, sorted by title, case-insensitively. */
         fun all(features: List<ProximiioFeature>): List<VenuePoi> =
             features.mapNotNull(::of).sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, VenuePoi::title))
 
         /**
-         * Substring match, case-insensitive. An empty query matches everything, which
-         * is what lets the search sheet open on the full list.
+         * Case-insensitive substring match on the title. An empty query returns every
+         * place, which is what lets the search sheet open on the full list.
          */
         fun matching(
             query: String,
@@ -48,9 +44,8 @@ data class VenuePoi(
         }
 
         /**
-         * `null` for every feature that is not a searchable place: the venue's rooms,
-         * walls, level changers and its walkable path network all arrive in the same
-         * list.
+         * `null` for a feature that is not a searchable place. Rooms, walls, level
+         * changers and the walkable path network arrive in the same list.
          */
         private fun of(feature: ProximiioFeature): VenuePoi? {
             if (feature.propertyType != "poi") return null
@@ -58,16 +53,15 @@ data class VenuePoi(
             if (geometry.type != "Point") return null
             val pair = geometry.coordinates.arrayValue ?: return null
             if (pair.size < 2) return null
-            // GeoJSON is [longitude, latitude] — the reverse of how it is spoken.
+            // GeoJSON coordinates are [longitude, latitude].
             val longitude = pair[0].doubleValue ?: return null
             val latitude = pair[1].doubleValue ?: return null
             if (!longitude.isFinite() || !latitude.isFinite()) return null
 
             return VenuePoi(
                 id = feature.id,
-                // Organisations label places `title` or `name`; either is the visitor's
-                // word for the place. Falling back to the id keeps a mislabelled POI
-                // routable rather than invisible.
+                // A venue labels a place `title` or `name`. The id is the fallback, so a
+                // mislabelled POI stays searchable and routable.
                 title =
                     text(feature.properties?.get("title"))
                         ?: text(feature.properties?.get("name"))
@@ -79,15 +73,12 @@ data class VenuePoi(
         }
 
         /**
-         * The nearest place of every kind the venue tags, from where the visitor is
-         * standing — which is the whole of "find me a toilet".
+         * The nearest place of each amenity kind the venue tags, measured from [from].
          *
-         * The kinds are read off the venue's own data rather than listed here. A venue
-         * that tags toilets and cafes offers toilets and cafes; one that tags only its
-         * artworks offers those; one that tags nothing offers nothing, which is a
-         * better answer than a hard-coded category no POI carries. Straight-line
-         * distance, deliberately: this picks which place to ask for a route to, and the
-         * route itself is the SDK's answer to how far it really is.
+         * The kinds come from the venue's own data; this file lists none, so a venue
+         * that tags nothing returns nothing. Distance is straight-line
+         * (`GeoMath.haversineDistance`), which selects the candidate; the walking
+         * distance is whatever `computeRoute` returns for it.
          */
         fun nearestByAmenity(
             pois: List<VenuePoi>,
