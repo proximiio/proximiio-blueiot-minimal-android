@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: assemble · test · lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install SDK packages
+        # Compose BOM 2026.08.00 requires compileSdk 37.
+        run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # No secret is needed to build this app, and none is configured here. The
+      # credentials live in a git-ignored secrets.properties that CI does not have;
+      # an empty one is written so the build reads empty values, which is the state
+      # the app is written to tolerate — it says which key is missing on screen
+      # instead of crashing. The venue's survey value is tracked, so it needs nothing.
+      - name: Empty secrets
+        run: printf 'PROXIMIIO_APPLICATION_TOKEN=\nBLUEIOT_CLOUD_RELAY_URL=\nBLUEIOT_CLOUD_RELAY_TOKEN=\n' > secrets.properties
+
+      - name: Assemble debug
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Android lint
+        run: ./gradlew :app:lintDebug --stacktrace
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            **/build/reports/**
+            **/build/test-results/**
+          retention-days: 7
