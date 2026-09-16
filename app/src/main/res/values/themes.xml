@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      A bare Material 3 theme with no action bar: the app's only chrome is drawn by
+      Compose, over a full-bleed map. Brand it where you brand the icon.
+    -->
+    <style name="Theme.VenueMap" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

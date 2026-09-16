@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The same exclusion as data_extraction_rules.xml, for Android 11 and below, which
+  read this file instead. Two files saying one thing is the platform's arrangement,
+  not a choice: `dataExtractionRules` only applies from Android 12.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="BlueiotMinimal.xml" />
+</full-backup-content>

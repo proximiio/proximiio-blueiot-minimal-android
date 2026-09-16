@@ -1,0 +1,10 @@
+# The ONLY place a real credential may live — see secrets.example.properties.
+secrets.properties
+
+local.properties
+build/
+.gradle/
+.idea/
+*.iml
+.kotlin/
+.DS_Store

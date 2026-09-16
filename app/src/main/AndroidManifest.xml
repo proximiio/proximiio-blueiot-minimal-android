@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The venue is downloaded once and the relay is a socket. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      POSITIONING HAS TO SURVIVE A LOCKED PHONE. Android freezes a backgrounded process
+      within minutes of the last Activity stopping — no socket read, no coroutine tick —
+      and Doze takes the network with it. The SDK's answer is a foreground service
+      (`ProximiioServiceOptions`, see `Venue.kt`), and from API 34 the platform refuses
+      `startForeground` unless the permissions for the service's type are declared. The
+      SDK's own manifest declares the service; these are the grants it needs from the app.
+
+      `location` is the only foreground-service type a relay-only app can hold: the SDK
+      derives the type mask from the grants it has, and a relay-only app scans nothing.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!--
+      `ProximiioServiceOptions.holdsWakeLock`: the position source is a socket, and a
+      socket is read on the CPU. In Doze the frame waits for the next maintenance
+      window, which is the difference between a dot that moves as the visitor walks and
+      one that jumps every ten minutes.
+    -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!--
+      The one runtime grant this app asks for (`LocationPrompt`), and it is not asked for
+      the position: the venue's anchors place the wristband and the phone's own location
+      never enters it. Coarse is enough — nothing here reads a coordinate off the phone —
+      and it is what lets the SDK hold the `location` service type above.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+      Asked with it on API 33+, so the service's ongoing row is visible. A refusal leaves
+      the service running invisibly and costs nothing else.
+    -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      NO BLUETOOTH PERMISSIONS, deliberately. The phone scans nothing: the venue's Blueiot
+      anchors locate the wristband and report to the Proximi.io cloud relay, and
+      `ProximiioConfiguration.relayOnly` turns the SDK's own iBeacon, Eddystone and UWB
+      sources off. An app that asks for Bluetooth here would be asking a visitor for a
+      radio it never turns on.
+    -->
+
+    <application
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/full_backup_content"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VenueMap">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

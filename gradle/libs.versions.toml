@@ -1,0 +1,70 @@
+# Version catalog — Proximi.io Blueiot minimal reference app.
+#
+# Every version the app resolves is here, and the README quotes these numbers. The
+# Proximi.io lines are exact: the map library requires the SDK it was built against, so
+# the two move together, and a mismatch is a resolution conflict rather than a runtime
+# surprise.
+#
+# AGP 9 ships **built-in Kotlin support** and pins the Kotlin version it was built against
+# (2.2.10 for AGP 9.3.1). Forcing a newer KGP onto the classpath breaks the built-in path,
+# so `kotlin` below tracks AGP, and `org.jetbrains.kotlin.android` must never be applied.
+
+[versions]
+# --- toolchain -------------------------------------------------------------
+agp = "9.3.1"
+kotlin = "2.2.10"
+compileSdk = "37"
+minSdk = "26"
+# 36, not 37, and the two are decoupled on purpose: the Compose BOM requires
+# compiling against 37, while the SDK itself targets 36 and Robolectric 4.16 — which
+# runs the two `SharedPreferences` tests — refuses to configure a package targeting
+# an SDK it has no image for.
+targetSdk = "36"
+jvmTarget = "17"
+
+# --- proximi.io ------------------------------------------------------------
+# The SDK umbrella `api`-exposes core / positioning / routesnapping / wayfinding / …;
+# Blueiot is a separate opt-in artifact at the same version.
+proximiioSdk = "6.0.0-beta.6"
+# The map umbrella `api`-exposes core / kit / live / compose, so one line is the whole
+# library — the canvas, the floor controller, the position renderer and the Compose
+# wrapper. It brings MapLibre transitively.
+proximiioMap = "6.0.0-beta.7"
+
+# --- androidx --------------------------------------------------------------
+androidxCore = "1.19.0"
+androidxActivity = "1.13.0"
+androidxLifecycle = "2.11.0"
+composeBom = "2026.08.00"
+
+# --- test ------------------------------------------------------------------
+junit = "4.13.2"
+robolectric = "4.16"
+
+[libraries]
+# --- proximi.io ------------------------------------------------------------
+proximiio-sdk = { module = "io.proximi.sdk:proximiio", version.ref = "proximiioSdk" }
+proximiio-sdk-blueiot = { module = "io.proximi.sdk:proximiio-blueiot", version.ref = "proximiioSdk" }
+proximiio-map = { module = "io.proximi.map:proximiio-map", version.ref = "proximiioMap" }
+
+# --- androidx --------------------------------------------------------------
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidxLifecycle" }
+
+# --- compose (versions come from the BOM) ----------------------------------
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-ui = { module = "androidx.compose.ui:ui" }
+compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+
+# --- test ------------------------------------------------------------------
+junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
