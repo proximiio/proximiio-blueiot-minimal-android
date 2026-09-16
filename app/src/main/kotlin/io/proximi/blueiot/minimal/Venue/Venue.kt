@@ -29,7 +29,6 @@ import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayPositionProvider
 import io.proximi.sdk.core.platform.PermissionRequestLauncher
 import io.proximi.sdk.detachPositionProvider
 import io.proximi.sdk.loadRouteNetwork
-import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.requestPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
 import io.proximi.sdk.setPermissionLauncher
@@ -90,18 +89,6 @@ class Venue private constructor(
         val provider = BlueiotCloudRelayPositionProvider(configuration)
         attachedProvider = provider.name
         sdk.attachPositionProvider(provider)
-    }
-
-    /**
-     * Re-reads the grants after the app has run a permission dialog of its own.
-     *
-     * Android reports no authorization-changed callback, so the SDK sees only the grants
-     * it requested itself. Everything downstream of a permission change follows from
-     * this call, including starting the foreground service that could not be started
-     * before the grant.
-     */
-    suspend fun refreshPermissions() {
-        sdk.refreshPermissions()
     }
 
     /**
