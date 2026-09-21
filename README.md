@@ -27,6 +27,11 @@ product.
 
 ## Fill in the configuration
 
+The app draws one Proximi.io organisation and follows one BlueIoT wristband. Before it
+shows anything, the organisation must hold the venue's floors, places and geofences, and
+the venue's BlueIoT engine must report the wristband to the Proximi.io cloud relay. Ask
+Proximi.io for the three values below if you do not have them.
+
 Three build-time credentials, none editable at runtime:
 
 ```sh
@@ -54,8 +59,12 @@ The one non-secret value lives in the tracked `venue.properties`; see **Floor nu
 ./gradlew :app:installDebug
 ```
 
-Or open the folder in Android Studio and press Run. The Gradle wrapper pins Gradle, and
+Or open the folder in Android Studio and press Run. The Gradle wrapper pins Gradle 9.5, and
 `local.properties` points at the Android SDK; Android Studio writes it on first open.
+
+Requirements: **JDK 17** or newer for the build (the project compiles to Java 17 bytecode),
+an Android Studio version that supports AGP 9.3, and a device or emulator on API 26 or
+newer. A build needs the network: the artifacts below are downloaded, not vendored.
 
 ```sh
 ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug
@@ -74,6 +83,23 @@ needs no credentials to read. There is no `mavenLocal()`.
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
 MapLibre arrives transitively through `proximiio-map` and must not be declared here.
+
+## The first run
+
+1. The app asks for the wristband number printed on the band. The line under the field
+   echoes the tag it understood, in decimal and hexadecimal.
+2. It asks for location once, then Android's own dialog follows. See **In a pocket** for
+   why a relay-fed app needs the grant.
+3. The map opens on the venue. The dot appears when the relay reports the wristband;
+   until then the map, the floor selector and the search work without it.
+
+A key left empty in `secrets.properties` is named on screen instead of the map. No
+position and no map usually means the token is for another organisation, the relay
+address or token is wrong, or the venue's engine is not reporting that wristband.
+
+The SDK and the map library are documented at
+[docs.proximi.fi/android-sdk-v6](https://docs.proximi.fi/android-sdk-v6/) and
+[docs.proximi.fi/android-map-v6](https://docs.proximi.fi/android-map-v6/).
 
 ## Where things are
 
