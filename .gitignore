@@ -8,3 +8,7 @@ build/
 *.iml
 .kotlin/
 .DS_Store
+
+# Release builds from Android Studio, and the daemon JDK it pins on this machine.
+/app/release/
+/gradle/gradle-daemon-jvm.properties
