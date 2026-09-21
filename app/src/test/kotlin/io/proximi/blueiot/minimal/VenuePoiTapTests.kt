@@ -26,13 +26,13 @@ class VenuePoiTapTests {
                 ),
         )
 
-    private val places = VenuePoi.all(listOf(poi("time-capsules"), poi("zigzag")))
+    private val places = VenuePoi.all(listOf(poi("gallery-north"), poi("gallery-south")))
 
     /** The ids arrive nearest first; the first one that is a place wins. */
     @Test
     fun theFirstTappedIdThatIsAPlaceIsChosen() {
-        val tapped = VenuePoi.tapped(listOf("room-12", "zigzag", "time-capsules"), places)
-        assertEquals("zigzag", tapped?.id)
+        val tapped = VenuePoi.tapped(listOf("room-12", "gallery-south", "gallery-north"), places)
+        assertEquals("gallery-south", tapped?.id)
     }
 
     @Test
@@ -47,6 +47,6 @@ class VenuePoiTapTests {
 
     @Test
     fun noPlacesLoadedChoosesNothing() {
-        assertNull(VenuePoi.tapped(listOf("zigzag"), emptyList()))
+        assertNull(VenuePoi.tapped(listOf("gallery-south"), emptyList()))
     }
 }

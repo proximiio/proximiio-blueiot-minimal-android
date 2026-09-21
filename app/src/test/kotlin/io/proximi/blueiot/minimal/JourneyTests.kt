@@ -131,7 +131,7 @@ class JourneyPersistenceTests {
 class AmenityQueryTests {
     /**
      * A POI as `Proximiio.features()` returns one. Only the longitude varies; at this
-     * latitude one degree is roughly 74 km, so a larger longitude is further away.
+     * latitude one degree is roughly 72 km, so a larger longitude is further away.
      */
     private fun poi(
         id: String,

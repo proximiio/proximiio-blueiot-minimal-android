@@ -22,9 +22,8 @@ event log, no offline package and no step list. Nothing reorders a visit on its 
 uses no navigation library, no dependency injection and no `ViewModel`: `remember` and
 `rememberSaveable` hold every piece of state in the app.
 
-The full demo app (`proximiio-blueiot-android`) shows the SDK's settings and diagnostics.
-It is a field-debugging tool for the Proximi.io team rather than a starting point for a
-product.
+Each of those exists in the SDK and is left out here on purpose: this app is a starting
+point for a product, not a tour of the SDK.
 
 ## Fill in the configuration
 
@@ -243,9 +242,8 @@ no detector and no re-routing of its own.
 
 ## Place notifications
 
-Entering one of the venue's geofences posts a notification: "You are now inside Future
-Past (blue)." Leaving it replaces that notification with "You have left Main Hall
-(blue)." All of it is `Venue/GeofenceNotifier.kt`: one channel ("Place updates"), the
+Entering one of the venue's geofences posts a notification: "You are now inside Main
+Hall." Leaving it replaces that notification with "You have left Main Hall." All of it is `Venue/GeofenceNotifier.kt`: one channel ("Place updates"), the
 geofence name as the title, one sentence as the body, and one notification id per
 geofence, so an exit replaces its enter. Tapping a notification opens the map.
 
@@ -309,8 +307,7 @@ then.
 There is none on Android. The iOS app records positions, floors, relay connection
 changes, SDK warnings, and foreground and background transitions into a file support can
 ask a visitor for, with the configured credentials stripped out. The
-Android SDK has no equivalent of `startDiagnosticsRecording` or `recordDiagnosticsEvent`;
-it is on the SDK's parity backlog.
+Android SDK has no equivalent of `startDiagnosticsRecording` or `recordDiagnosticsEvent`.
 
 Two consequences. `MainActivity` and `Venue` start no recording and record no events. And
 `DiagnosticsTests`, which on iOS asserts that the log never carries a configured secret

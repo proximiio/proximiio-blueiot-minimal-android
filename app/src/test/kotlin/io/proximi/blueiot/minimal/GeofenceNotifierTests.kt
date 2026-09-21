@@ -17,14 +17,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class GeofenceNotifierTests {
-    private val futurePast = ProximiioGeofence(id = "a1b2c3d4", name = "Main Hall")
+    private val mainHall = ProximiioGeofence(id = "a1b2c3d4", name = "Main Hall")
 
     // MARK: - The sentence
 
     /** The title is the geofence name; the body is one sentence. */
     @Test
     fun enteringAPlaceSaysSo() {
-        val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Entered(futurePast)))
+        val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Entered(mainHall)))
         assertEquals("Main Hall", note.title)
         assertEquals("You are now inside Main Hall.", note.body)
     }
@@ -32,7 +32,7 @@ class GeofenceNotifierTests {
     /** The exit event carries a dwell time. The sentence does not use it. */
     @Test
     fun leavingAPlaceSaysSo() {
-        val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Exited(futurePast, dwellTime = 412.0)))
+        val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Exited(mainHall, dwellTime = 412.0)))
         assertEquals("Main Hall", note.title)
         assertEquals("You have left Main Hall.", note.body)
     }
@@ -65,8 +65,8 @@ class GeofenceNotifierTests {
      */
     @Test
     fun theExitReplacesItsEnter() {
-        val entered = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Entered(futurePast)))
-        val left = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Exited(futurePast, dwellTime = 9.0)))
+        val entered = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Entered(mainHall)))
+        val left = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Exited(mainHall, dwellTime = 9.0)))
         assertEquals(entered.id, left.id)
         // Stable across a relaunch: `String.hashCode` is specified by the language, so
         // the same geofence id is the same notification id on every device and run.
