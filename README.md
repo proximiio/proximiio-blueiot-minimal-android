@@ -12,7 +12,8 @@ cloud relay. The phone scans nothing.
 This is the Android twin of
 [`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios),
 file for file, with one file more. The deliberate divergences are listed under
-**Choosing a place**, **Place notifications**, **In a pocket** and **The diagnostics log**.
+**Choosing a place**, **Place notifications**, **Positioning while the app is
+backgrounded** and **The diagnostics log**.
 
 ## What it is not
 
@@ -29,8 +30,8 @@ product.
 
 The app draws one Proximi.io organisation and follows one BlueIoT wristband. Before it
 shows anything, the organisation must hold the venue's floors, places and geofences, and
-the venue's BlueIoT engine must report the wristband to the Proximi.io cloud relay. Ask
-Proximi.io for the three values below if you do not have them.
+the venue's BlueIoT engine must report the wristband to the Proximi.io cloud relay.
+Proximi.io supplies the three values below.
 
 Three build-time credentials, none editable at runtime:
 
@@ -46,7 +47,7 @@ $EDITOR secrets.properties
 | `BLUEIOT_CLOUD_RELAY_TOKEN` | That relay's stream token, sent as `Authorization: Bearer`. The relay answers HTTP 401 without it |
 
 `secrets.properties` is gitignored and is the only place a real credential may live.
-`secrets.example.properties` is tracked, leaves the token keys empty and is the file you
+`secrets.example.properties` is tracked, leaves the token keys empty and is the file to
 copy. The build reads `secrets.properties` when it exists and falls back to a Gradle
 property of the same name, so CI builds with neither on disk. With any key empty the app
 still builds and runs, and reports the missing key on screen.
@@ -88,8 +89,9 @@ MapLibre arrives transitively through `proximiio-map` and must not be declared h
 
 1. The app asks for the wristband number printed on the band. The line under the field
    echoes the tag it understood, in decimal and hexadecimal.
-2. It asks for location once, then Android's own dialog follows. See **In a pocket** for
-   why a relay-fed app needs the grant.
+2. It asks for location once, then Android's own dialog follows.
+   **Positioning while the app is backgrounded** explains why a relay-fed app needs the
+   grant.
 3. The map opens on the venue. The dot appears when the relay reports the wristband;
    until then the map, the floor selector and the search work without it.
 
@@ -104,11 +106,11 @@ The SDK and the map library are documented at
 ## Where things are
 
 Thirteen files in the iOS app's folder layout, all in one Kotlin package
-(`io.proximi.blueiot.minimal`). The folders exist so the two apps read side by side.
+(`io.proximi.blueiot.minimal`). The folders match the iOS app so the two can be read side by side.
 
 | File | What it owns |
 | --- | --- |
-| `App/MainActivity.kt` | The order of things: wristband → location → SDK → map |
+| `App/MainActivity.kt` | The start-up order: wristband, location, SDK, map |
 | `App/VenueConfiguration.kt` | The build-time values |
 | `Venue/WristbandId.kt` | The spelling rule for a wristband id, and where it is stored |
 | `Venue/Venue.kt` | Starting the SDK and attaching the cloud relay to one wristband |
@@ -162,11 +164,11 @@ It reaches the SDK as `BlueiotCloudRelayConfiguration.engineGroundFloorNumber` i
 `Venue.follow`. The shift applies to floors above ground only: at `1`, engine floor 1 is
 level 0 and engine floor 2 is level 1, while engine floor −1 stays level −1.
 
-## In a pocket
+## Positioning while the app is backgrounded
 
-Positioning continues when the screen locks. It requires all four of the following. Each
-one missing produces the same symptom: position updates stop within minutes of the screen
-going off.
+Positioning continues when the app is backgrounded and when the screen locks. It requires
+all four of the following. Each one missing produces the same symptom: position updates
+stop within minutes of the screen going off.
 
 | Requirement | Where it is set | What a missing one looks like |
 | --- | --- | --- |
@@ -195,7 +197,7 @@ deliberate divergence from the iOS app. The SDK's request path would also ask fo
 Bluetooth, which a relay-only app never uses. The prompt is shown once, gated by a flag of
 the app's own: Android reports no "not determined" state, and
 `shouldShowRequestPermissionRationale` cannot distinguish "never asked" from "denied
-twice". A refusal is an answer, and nobody is asked twice.
+twice". A refusal is recorded like any other answer, and the prompt is not shown again.
 
 A foreground service exempts the app from most of Doze while it runs.
 `ProximiioServiceOptions.holdsWakeLock = true` is set because the position source is a
@@ -251,7 +253,7 @@ This is a deliberate divergence from the iOS app, which posts no notifications a
 
 Geofences are defined in Proximi.io Portal and evaluated by the SDK against every
 position; events are collected from `proximiio.geofenceEvents()`. A geofence the venue
-left unnamed produces no notification, because a geofence id means nothing to a visitor.
+left unnamed produces no notification.
 Privacy zone events produce no notification in either direction: a privacy zone exists so
 that the visitor's presence inside it is not reported.
 
@@ -292,7 +294,7 @@ The visit is written to `SharedPreferences` on every change and restored on laun
 throws on text it cannot read, and `JourneyStore.load` returns `null` in that case rather
 than letting the launch crash.
 
-## Following the visitor
+## Recentring on the visitor
 
 The button at the right of the bottom bar recentres the map on the wristband. It is one
 call into the map library's follow camera, `ProximiioMapSession.recentre()` plus
