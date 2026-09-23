@@ -6,11 +6,14 @@
 //  that change the plan.
 //
 //  `JourneyNavigator` owns the routing. It computes each leg from the live position,
-//  draws and follows it through the same session as the map, re-routes it when the
-//  visitor leaves the leg, and measures what remains. None of that is in this file.
+//  draws and follows it through the same session as the map, and measures what
+//  remains. None of that is in this file. With `deviationPolicy = ASK_APP` it does not
+//  re-route a visitor who leaves the leg; this screen asks the visitor instead
+//  (`DeviationPrompt`).
 //
 //  Neither the library nor this screen reorders a visit on its own: `proposeOrder`
-//  measures an order and `apply` is what applies it.
+//  measures an order and `apply` is what applies it, and `replanFromHere` runs only
+//  when the visitor asks for it.
 //
 package io.proximi.blueiot.minimal
 
@@ -60,6 +63,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.proximi.map.core.Journey
+import io.proximi.map.core.JourneyDeviationPolicy
+import io.proximi.map.core.JourneyEvent
 import io.proximi.map.core.JourneyOrderProposal
 import io.proximi.map.core.JourneyOverlayStyle
 import io.proximi.map.core.JourneyStop
@@ -86,7 +91,13 @@ fun JourneyBar(
     onEnd: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val navigator = remember(session, journey) { JourneyNavigator(session, journey) }
+    // No automatic re-route when the visitor leaves the leg. The drawn leg stays until
+    // the visitor answers the prompt. The thresholds are the library defaults
+    // (`JourneyDeviationRules`).
+    val navigator =
+        remember(session, journey) {
+            JourneyNavigator(session, journey).apply { deviationPolicy = JourneyDeviationPolicy.ASK_APP }
+        }
 
     val plan by navigator.journey.collectAsStateWithLifecycle()
     val overview by navigator.overview.collectAsStateWithLifecycle()
@@ -98,6 +109,14 @@ fun JourneyBar(
     /** The detours on offer, named. An empty list shows no button. */
     var detours by remember { mutableStateOf(emptyList<Detour>()) }
     var isShowingPlan by remember { mutableStateOf(false) }
+    /** The open deviation prompt, or `null`. Set from `navigator.events`. */
+    var prompt by remember(navigator) { mutableStateOf<DeviationPrompt?>(null) }
+
+    // `events` delivers only the events emitted after collection starts. Collection
+    // ends when this effect leaves the composition.
+    LaunchedEffect(navigator) {
+        navigator.events.collect { event -> prompt = DeviationPrompt.after(event, prompt) }
+    }
 
     LaunchedEffect(navigator) {
         // Nothing is drawn until the first position, because the leg is computed from
@@ -188,6 +207,20 @@ fun JourneyBar(
 
             GuidanceLine(guidance)
 
+            prompt?.let { open ->
+                DeviationPromptRow(
+                    prompt = open,
+                    onResume = {
+                        prompt = null
+                        scope.launch { navigator.resumeJourney() }
+                    },
+                    onReplan = {
+                        prompt = null
+                        scope.launch { navigator.replanFromHere() }
+                    },
+                )
+            }
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -221,6 +254,82 @@ fun JourneyBar(
                 },
             )
         }
+    }
+}
+
+/**
+ * The visitor's two answers to a deviation. Both end a live detour first and clear the
+ * deviation. `resumeJourney()` routes to the stop the plan is on. `replanFromHere()`
+ * reorders the remaining stops from the visitor's position, applies the order and
+ * routes to its first stop.
+ */
+@Composable
+private fun DeviationPromptRow(
+    prompt: DeviationPrompt,
+    onResume: () -> Unit,
+    onReplan: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(prompt.message, style = MaterialTheme.typography.bodyMedium)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(onClick = onResume) { Text("Back to my route") }
+            TextButton(onClick = onReplan) { Text("New route from here") }
+        }
+    }
+}
+
+/**
+ * The prompt shown when the visitor has left the visit's route, and the rule that opens
+ * and closes it.
+ *
+ * Three [JourneyEvent]s open it: `FarFromRoute`, `OffRouteTooLong` and
+ * `DetourOverstayed`. `LeftRoute` does not: a visitor a few metres off the route is not
+ * asked. `ReturnedToRoute` and `JourneyFinished` close it. `DetourEnded` closes a prompt
+ * opened by `DetourOverstayed`. Other events leave it as it is. Each event arrives once
+ * per episode.
+ */
+data class DeviationPrompt(
+    val reason: Reason,
+    val message: String,
+) {
+    enum class Reason {
+        FAR_FROM_ROUTE,
+        OFF_ROUTE_TOO_LONG,
+        DETOUR_OVERSTAYED,
+    }
+
+    companion object {
+        /** The prompt after [event], given the prompt on screen. `null` shows none. */
+        fun after(
+            event: JourneyEvent,
+            showing: DeviationPrompt?,
+        ): DeviationPrompt? =
+            when (event) {
+                is JourneyEvent.FarFromRoute ->
+                    DeviationPrompt(
+                        Reason.FAR_FROM_ROUTE,
+                        "You are ${event.distance.roundToInt()} m from your route.",
+                    )
+                is JourneyEvent.OffRouteTooLong ->
+                    DeviationPrompt(
+                        Reason.OFF_ROUTE_TOO_LONG,
+                        "You have been off your route for ${minutes(event.duration)} min.",
+                    )
+                is JourneyEvent.DetourOverstayed ->
+                    DeviationPrompt(
+                        Reason.DETOUR_OVERSTAYED,
+                        "You left your route for ${event.stop.title} ${minutes(event.duration)} min ago.",
+                    )
+                JourneyEvent.ReturnedToRoute, JourneyEvent.JourneyFinished -> null
+                is JourneyEvent.DetourEnded -> if (showing?.reason == Reason.DETOUR_OVERSTAYED) null else showing
+                else -> showing
+            }
+
+        /** Whole minutes, at least 1. */
+        private fun minutes(seconds: Double): Int = max(1, (seconds / 60).roundToInt())
     }
 }
 

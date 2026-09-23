@@ -123,7 +123,7 @@ Fourteen files in the iOS app's folder layout, all in one Kotlin package
 | `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, and where a visit starts |
 | `UI/PoiSearchSheet.kt` | The search list, single or multi-select |
 | `UI/GuidanceLine.kt` | The turn-by-turn sentence |
-| `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, detours, reordering |
+| `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, detours, reordering, and the prompt shown when the visitor leaves the route |
 | `res/mipmap-anydpi-v26/ic_launcher.xml` | The app icon, a placeholder |
 
 The icon is a placeholder: an adaptive icon made of a flat colour
@@ -303,18 +303,28 @@ nothing else.
 The list button next to the search opens the same search sheet in multi-select. The
 places tapped, in that order, become a `Journey`. `JourneyNavigator` then owns every route
 computation in the walk: it draws and follows one leg at a time through the same session
-as the map, and re-routes a leg by itself when the visitor leaves it, which a single route
-does not do.
+as the map.
+
+The navigator does not re-route a visitor who leaves the leg. `JourneyBar` sets
+`deviationPolicy = JourneyDeviationPolicy.ASK_APP`, and the drawn leg stays until the
+visitor answers a prompt on the bar. The prompt opens on three `JourneyNavigator.events`:
+`FarFromRoute`, `OffRouteTooLong` and `DetourOverstayed`. `LeftRoute` opens no prompt. The
+prompt closes on `ReturnedToRoute`, on `JourneyFinished`, on `DetourEnded` for a detour
+prompt, and when either button is tapped. `DeviationPrompt.after` holds this rule. The
+thresholds are the library defaults in `JourneyDeviationRules`; the app sets none.
 
 The bar shows the stop in hand, `overview.remainingStops`, `overview.remainingMeters`, the
 ETA, the count of `overview.unreachableStopIds`, and **Continue** once the visitor has
 arrived. `JourneyRules.advance` defaults to `Advance.Manual`, so arrival does not move the
 visit on by itself.
 
-**Your visit**, the list button on the bar, is where the plan is changed:
+The plan is changed on the bar and in **Your visit**, the list button on the bar:
 
 | Control | What it does |
 | --- | --- |
+| **Back to my route** | On the deviation prompt. Calls `resumeJourney()`: a live detour ends (reached is recorded as visited, otherwise dropped), the leg to the stop the plan is on is drawn from the visitor's position, and the deviation clears |
+| **New route from here** | On the deviation prompt. Calls `replanFromHere()`: a live detour ends, the remaining stops are reordered from the visitor's position and the order is applied. The stop being walked to is not kept in place |
+| **Back to the plan** | On the bar during a detour. Calls `cancelDetour()` |
 | **+** | Opens the same multi-select search. `JourneyNavigator.add` puts each pick after everything still to be walked and leaves the leg in hand alone. It returns `false` for a place the plan already holds, which the sheet reports. It is available after the last stop too: adding revives a finished visit and makes the new stop active |
 | **Drag** | Long-press a row and drag to reorder what is still ahead. The rows are `JourneyNavigator.reorderableStops`, the list `move(stopId, toIndex)` indexes into, so the app holds no second copy of which stops may move. Compose has no `.onMove`, so this gesture is the app's, in `JourneyBar.ReorderableStops` |
 | **Save N m by reordering** | A shorter order, measured by `proposeOrder`. Neither the library nor the sheet applies one; `apply` does. It is re-measured whenever the stops change, because `apply` ignores a proposal that no longer describes the journey |
@@ -387,7 +397,7 @@ venue. No app code changes:
 ./gradlew :app:testDebugUnitTest
 ```
 
-Thirty-one tests. All seven subjects are chosen because they fail without anything on
+Thirty-eight tests. All eight subjects are chosen because they fail without anything on
 screen looking wrong:
 
 - a wristband id read one way by the app and another way by the relay matches no tag, and
@@ -400,6 +410,9 @@ screen looking wrong:
 - a notification sentence naming the wrong place reads correctly, and a privacy zone
   announced on a lock screen is the one thing a privacy zone exists to prevent;
 - a tap resolved to the room under a POI instead of the POI routes to the wrong place;
+- a wrong deviation rule leaves a visitor off the route without a prompt, or keeps a
+  prompt on screen after the visitor has returned (`DeviationPromptTests`, the seven tests
+  of the iOS app under the same names);
 - an SDK log level mapped to the wrong logcat priority hides warnings behind a filter.
 
 The screens are not tested; they hold no logic.
