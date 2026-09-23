@@ -28,21 +28,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import io.proximi.sdk.core.platform.PermissionRequestLauncher
-import io.proximi.sdk.permissions.ActivityResultPermissionLauncher
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import io.proximi.sdk.refreshPermissions
 
 class MainActivity : ComponentActivity() {
-    // Constructed here because `registerForActivityResult` must be called before the
-    // Activity is STARTED. `Venue.start` hands it to the SDK for the SDK's own
-    // permission requests.
-    private val permissionLauncher = ActivityResultPermissionLauncher(this)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    RootScreen(permissionLauncher)
+                    RootScreen()
                 }
             }
         }
@@ -54,7 +51,7 @@ class MainActivity : ComponentActivity() {
  * straight to the map.
  */
 @Composable
-fun RootScreen(launcher: PermissionRequestLauncher) {
+fun RootScreen() {
     val context = LocalContext.current
     val store = remember(context) { WristbandStore.preferences(context) }
 
@@ -78,12 +75,20 @@ fun RootScreen(launcher: PermissionRequestLauncher) {
                 return@LaunchedEffect
             }
             val token = VenueConfiguration.token ?: throw VenueConfiguration.SetupIncomplete()
-            val started = Venue.start(context, token, launcher)
+            val started = Venue.start(context, token)
             started.follow(band)
             venue = started
         } catch (error: Exception) {
             failure = error.message ?: error.toString()
         }
+    }
+
+    // Android reports no permission change to a running app. A grant changed in the
+    // system settings reaches the SDK when the app returns to the foreground.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(venue) {
+        val running = venue ?: return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) { running.sdk.refreshPermissions() }
     }
 
     val started = venue

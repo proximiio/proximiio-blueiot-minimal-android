@@ -26,12 +26,10 @@ import io.proximi.sdk.attachPositionProvider
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayConfiguration
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayEndpoint
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayPositionProvider
-import io.proximi.sdk.core.platform.PermissionRequestLauncher
 import io.proximi.sdk.detachPositionProvider
 import io.proximi.sdk.loadRouteNetwork
-import io.proximi.sdk.requestPermissions
+import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
-import io.proximi.sdk.setPermissionLauncher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,12 +137,14 @@ class Venue private constructor(
             )
 
         /**
-         * Requests permissions, authenticates, starts positioning and downloads the
-         * venue.
+         * Reads the permission grants, authenticates, starts positioning and downloads
+         * the venue.
          *
          * The four suspending calls run in this order, and none is optional:
-         *  1. [requestPermissions] reads the grants. It prompts only while Android has
-         *     never been asked, so `LocationPrompt` is the only prompt a visitor sees.
+         *  1. [refreshPermissions] reads the grants `LocationPrompt` obtained. It never
+         *     shows a dialog. `requestPermissions()` is not called: the SDK counts only
+         *     the prompts it raised itself, so after a refusal in `LocationPrompt` it
+         *     can show the system location dialog a second time.
          *  2. [Proximiio.authenticate] validates the token and runs the first sync,
          *     which fills the floors relay fixes are resolved against.
          *  3. [Proximiio.start] starts positioning and, with `serviceOptions` set, the
@@ -160,11 +160,9 @@ class Venue private constructor(
         suspend fun start(
             context: Context,
             token: String,
-            launcher: PermissionRequestLauncher,
         ): Venue {
             val sdk = Proximiio(context, configuration(token))
-            sdk.setPermissionLauncher(launcher)
-            sdk.requestPermissions()
+            sdk.refreshPermissions()
             sdk.authenticate()
             sdk.start()
             val venue = Venue(sdk)

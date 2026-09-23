@@ -88,7 +88,8 @@ MapLibre arrives transitively through `proximiio-map` and must not be declared h
 
 1. The app asks for the wristband number printed on the band. The line under the field
    echoes the tag it understood, in decimal and hexadecimal.
-2. It asks for location once, then Android's own dialog follows.
+2. It explains why it needs location. **Continue** opens Android's permission dialog,
+   and no other permission dialog follows, whatever the answer.
    **Positioning while the app is backgrounded** explains why a relay-fed app needs the
    grant.
 3. The map opens on the venue. The dot appears when the relay reports the wristband;
@@ -192,11 +193,20 @@ iBeacon, Eddystone and UWB sources off. The SDK's own manifest still contributes
 `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` to the merged manifest.
 
 The app raises the permission dialog itself rather than letting the SDK do it, which is a
-deliberate divergence from the iOS app. The SDK's request path would also ask for
-Bluetooth, which a relay-only app never uses. The prompt is shown once, gated by a flag of
-the app's own: Android reports no "not determined" state, and
+deliberate divergence from the iOS app. `Proximiio.requestPermissions()` asks for precise
+location (`ACCESS_FINE_LOCATION`) and does not ask for `POST_NOTIFICATIONS`; this app
+needs approximate location and notifications, in one dialog. The prompt is shown once,
+gated by a flag of the app's own: Android reports no "not determined" state, and
 `shouldShowRequestPermissionRationale` cannot distinguish "never asked" from "denied
 twice". A refusal is recorded like any other answer, and the prompt is not shown again.
+
+`Venue.start` then calls `refreshPermissions()`, not `requestPermissions()`.
+`refreshPermissions()` reads the current grants and never shows a dialog. The SDK counts
+only the prompts it raised itself, so `requestPermissions()` after a refusal in
+`LocationPrompt` can show the system dialog a second time. `RootScreen` calls
+`refreshPermissions()` again each time the app returns to the foreground, because Android
+reports no permission change to a running app: a grant changed in the system settings
+reaches the SDK that way.
 
 A foreground service exempts the app from most of Doze while it runs.
 `ProximiioServiceOptions.holdsWakeLock = true` is set because the position source is a

@@ -39,10 +39,12 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun LocationPrompt(onAnswered: () -> Unit) {
-    // The app runs its own prompt, for exactly the permissions its manifest declares,
-    // rather than letting the SDK request them: the SDK would also request Bluetooth,
-    // which a relay-only app never uses. This is a deliberate divergence from the iOS
-    // app, which lets the SDK raise the dialog. Any result counts as answered.
+    // The app runs its own prompt instead of `requestPermissions()`, which asks for
+    // precise location and not for notifications. This app needs approximate location
+    // and notifications, in one dialog. This is a deliberate divergence from the iOS
+    // app, which lets the SDK raise the location dialog. Any result counts as answered.
+    // `Venue.start` then calls `refreshPermissions()`, which reads the result without
+    // prompting.
     val request =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             onAnswered()
