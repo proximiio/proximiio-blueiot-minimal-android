@@ -1,6 +1,6 @@
 # Proximi.io BlueIoT — minimal reference app (Android)
 
-A complete venue app in thirteen Kotlin files. It asks for the visitor's wristband
+A complete venue app in fourteen Kotlin files. It asks for the visitor's wristband
 number once, shows the venue map, searches the venue's places, routes to a picked
 place, states the next turn, posts a notification when the visitor enters or leaves one
 of the venue's geofences, and walks a planned sequence of places that can be added to,
@@ -10,10 +10,10 @@ The visitor is positioned by the venue's own BlueIoT anchors, through the Proxim
 cloud relay. The phone scans nothing.
 
 This is the Android twin of
-[`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios),
-file for file, with one file more. The deliberate divergences are listed under
-**Choosing a place**, **Place notifications**, **Positioning while the app is
-backgrounded** and **The diagnostics log**.
+[`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios).
+The deliberate divergences are listed under **Choosing a place**, **Place
+notifications**, **Positioning while the app is backgrounded**, **The diagnostics log**
+and **Testing without the venue**.
 
 ## What it is not
 
@@ -42,7 +42,7 @@ $EDITOR secrets.properties
 | Key | What it is |
 | --- | --- |
 | `PROXIMIIO_APPLICATION_TOKEN` | The Proximi.io application token (Proximi.io Portal → organisation → Application token) |
-| `BLUEIOT_CLOUD_RELAY_URL` | The Proximi.io cloud relay carrying this venue's wristband positions. A bare host is enough |
+| `BLUEIOT_CLOUD_RELAY_URL` | The Proximi.io cloud relay carrying this venue's wristband positions. A bare host is enough. The template sets the production relay, `blueiot.proximi.fi`; **Testing without the venue** describes the sandbox relay |
 | `BLUEIOT_CLOUD_RELAY_TOKEN` | That relay's stream token, sent as `Authorization: Bearer`. The relay answers HTTP 401 without it |
 
 `secrets.properties` is gitignored and is the only place a real credential may live.
@@ -105,18 +105,19 @@ The SDK and the map library are documented at
 
 ## Where things are
 
-Thirteen files in the iOS app's folder layout, all in one Kotlin package
+Fourteen files in the iOS app's folder layout, all in one Kotlin package
 (`io.proximi.blueiot.minimal`). The folders match the iOS app so the two can be read side by side.
 
 | File | What it owns |
 | --- | --- |
 | `App/MainActivity.kt` | The start-up order: wristband, location, SDK, map |
 | `App/VenueConfiguration.kt` | The build-time values |
+| `App/SdkLogcat.kt` | Forwarding the SDK's log to logcat in debug builds. No iOS twin |
 | `Venue/WristbandId.kt` | The spelling rule for a wristband id, and where it is stored |
 | `Venue/Venue.kt` | Starting the SDK and attaching the cloud relay to one wristband |
 | `Venue/VenuePoi.kt` | Turning the venue's features into searchable places |
 | `Venue/JourneyStore.kt` | Persisting a visit, and turning a picked place into a stop |
-| `Venue/GeofenceNotifier.kt` | The notification text and posting it. No iOS twin |
+| `Venue/GeofenceNotifier.kt` | The notification text and posting it. On iOS this is in `Venue.swift` and `NotificationPrompt.swift` |
 | `UI/WristbandPrompt.kt` | The wristband field, and the map credits |
 | `UI/LocationPrompt.kt` | The location prompt, and the rule for when it is shown |
 | `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, and where a visit starts |
@@ -189,8 +190,29 @@ hidden. Background location is never requested.
 
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
-iBeacon, Eddystone and UWB sources off. The SDK's own manifest still contributes
-`BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` to the merged manifest.
+iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
+manifest. At SDK `6.0.0-beta.7` and map `6.0.0-beta.9` the merged manifest holds:
+
+| Permission | Declared by | Requested at runtime |
+| --- | --- | --- |
+| `INTERNET`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK` | The app (and the SDK) | No, granted at install |
+| `ACCESS_COARSE_LOCATION`, `POST_NOTIFICATIONS` | The app (and the SDK) | Yes, by `LocationPrompt` |
+| `ACCESS_FINE_LOCATION` | The SDK and MapLibre. The merged entry carries `maxSdkVersion="30"` | No |
+| `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` | The SDK | No |
+| `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdkVersion="30"`) | The SDK | No, granted at install |
+| `FOREGROUND_SERVICE_CONNECTED_DEVICE` | The SDK | No, granted at install. `includesConnectedDeviceType = false` keeps the type out of the service |
+| `ACTIVITY_RECOGNITION` | The SDK, for pedestrian dead reckoning | No |
+| `ACCESS_NETWORK_STATE` | The SDK and MapLibre | No, granted at install |
+| `ACCESS_WIFI_STATE` | MapLibre | No, granted at install |
+| `RECEIVE_BOOT_COMPLETED` | AndroidX WorkManager, through the SDK | No, granted at install |
+| `ACCESS_BACKGROUND_LOCATION` | The SDK | Removed by the app |
+
+The app removes `ACCESS_BACKGROUND_LOCATION` with `tools:node="remove"` in
+`AndroidManifest.xml`. It never requests it: the foreground service keeps the process
+alive, and a service started while the app is on screen needs only the foreground grant.
+Without the declaration, Google Play asks for no background location declaration. Check
+the merged manifest again after raising a library version:
+`app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml`.
 
 The app raises the permission dialog itself rather than letting the SDK do it, which is a
 deliberate divergence from the iOS app. `Proximiio.requestPermissions()` asks for precise
@@ -257,7 +279,14 @@ Hall." Leaving it replaces that notification with "You have left Main Hall." All
 geofence name as the title, one sentence as the body, and one notification id per
 geofence, so an exit replaces its enter. Tapping a notification opens the map.
 
-This is a deliberate divergence from the iOS app, which posts no notifications at all.
+The iOS app posts a notification for every geofence transition too. Three details
+differ, deliberately:
+
+- iOS asks for notifications in a second prompt of its own, `NotificationPrompt`. This
+  app asks in the same Android dialog as location.
+- iOS gives each notification a new identifier, so an exit adds a second notification.
+  This app keeps one notification per geofence, so an exit replaces its enter.
+- iOS writes each transition to its diagnostics log. This app has no diagnostics log.
 
 Geofences are defined in Proximi.io Portal and evaluated by the SDK against every
 position; events are collected from `proximiio.geofenceEvents()`. A geofence the venue
@@ -323,7 +352,34 @@ Two consequences. `MainActivity` and `Venue` start no recording and record no ev
 `DiagnosticsTests`, which on iOS asserts that the log never carries a configured secret
 verbatim, is not ported; `BackgroundPositioningTests` notes this in its header.
 
-`adb logcat` carries the SDK's own log. Nothing in this app writes a credential to it.
+The SDK installs no log sink of its own, so nothing from the SDK reaches logcat by
+default. In debug builds `App/SdkLogcat.kt` sets `Proximiio.logSink` to forward each
+entry to `android.util.Log`, tagged `Proximiio/<category>`, at `Proximiio.logLevel`
+(`INFO` by default). Release builds install nothing. SDK log messages carry no token, and
+nothing in this app writes a credential to the log.
+
+```sh
+adb logcat -s 'Proximiio/*'
+```
+
+## Testing without the venue
+
+The Android SDK has no journey playback: `fetchJourney` and `JourneyPlaybackProvider` exist
+on iOS only. The iOS app's debug `-journeyPlayback` launch argument therefore has no
+counterpart here.
+
+The sandbox relay is the alternative. Proximi.io LiveView (`live.proximi.fi`) plays a
+journey stored in Proximi.io into the sandbox relay `relay-sandbox.proximi.fi`, and the
+relay reports it as wristband positions. The app receives them like positions from the
+venue. No app code changes:
+
+1. In `secrets.properties`, set `BLUEIOT_CLOUD_RELAY_URL` to `relay-sandbox.proximi.fi`
+   and `BLUEIOT_CLOUD_RELAY_TOKEN` to the sandbox relay's stream token. The sandbox relay
+   has its own token; ask your Proximi.io contact for it.
+2. In LiveView, play a journey into the sandbox relay. The "Connect your app" card shows
+   the relay host, the tag id and the ground floor number of the run.
+3. Enter that tag id as the wristband. The run's ground floor number must equal
+   `BLUEIOT_GROUND_FLOOR_NO` in `venue.properties`, or positions land on the wrong floor.
 
 ## Tests
 
@@ -331,7 +387,7 @@ verbatim, is not ported; `BackgroundPositioningTests` notes this in its header.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Twenty-nine tests. All six subjects are chosen because they fail without anything on
+Thirty-one tests. All seven subjects are chosen because they fail without anything on
 screen looking wrong:
 
 - a wristband id read one way by the app and another way by the relay matches no tag, and
@@ -343,7 +399,8 @@ screen looking wrong:
   stops position updates minutes after the screen locks;
 - a notification sentence naming the wrong place reads correctly, and a privacy zone
   announced on a lock screen is the one thing a privacy zone exists to prevent;
-- a tap resolved to the room under a POI instead of the POI routes to the wrong place.
+- a tap resolved to the room under a POI instead of the POI routes to the wrong place;
+- an SDK log level mapped to the wrong logcat priority hides warnings behind a filter.
 
 The screens are not tested; they hold no logic.
 

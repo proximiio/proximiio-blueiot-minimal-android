@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- The venue is downloaded once; the relay is a WebSocket. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -39,12 +40,24 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
+      Removed from the merged manifest. The SDK declares it for positioning with the app
+      off screen through a background location grant. This app never requests it: the
+      foreground service keeps the process alive, and a service started while the app is
+      on screen needs only the grant above. Without the declaration Google Play asks for
+      no background location declaration.
+    -->
+    <uses-permission
+        android:name="android.permission.ACCESS_BACKGROUND_LOCATION"
+        tools:node="remove" />
+
+    <!--
       This file declares no Bluetooth permission and the app requests none at runtime.
       The phone scans nothing: the venue's BlueIoT anchors locate the wristband and
       report to the Proximi.io cloud relay, and `ProximiioConfiguration.relayOnly` turns
-      the SDK's iBeacon, Eddystone and UWB sources off. The SDK's own manifest still
-      contributes BLUETOOTH_SCAN and BLUETOOTH_CONNECT to the merged manifest; neither is
-      ever requested.
+      the SDK's iBeacon, Eddystone and UWB sources off. The SDK's manifests still add
+      Bluetooth, fine location and activity recognition permissions to the merged
+      manifest (README, "Positioning while the app is backgrounded"). The app requests
+      none of them.
     -->
 
     <application

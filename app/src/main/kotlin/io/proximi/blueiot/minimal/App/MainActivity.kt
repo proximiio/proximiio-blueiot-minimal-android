@@ -36,6 +36,7 @@ import io.proximi.sdk.refreshPermissions
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        SdkLogcat.installInDebugBuilds()
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
