@@ -1,9 +1,10 @@
 # Version catalog — Proximi.io Blueiot minimal reference app.
 #
 # Every version the app resolves is here, and the README quotes these numbers. The
-# Proximi.io lines are exact: the map library requires the SDK it was built against, so
-# the two move together, and a mismatch is a resolution conflict rather than a runtime
-# surprise.
+# Proximi.io lines are exact versions. The map library's POM declares the SDK version it
+# was built against, which can be older than `proximiioSdk` below. Gradle resolves the
+# SDK to the highest version requested, so the app runs on `proximiioSdk`. Check that
+# the map release supports that SDK version before raising it.
 #
 # AGP 9 ships **built-in Kotlin support** and pins the Kotlin version it was built against
 # (2.2.10 for AGP 9.3.1). Forcing a newer KGP onto the classpath breaks the built-in path,
@@ -25,7 +26,7 @@ jvmTarget = "17"
 # --- proximi.io ------------------------------------------------------------
 # The SDK umbrella `api`-exposes core / positioning / routesnapping / wayfinding / …;
 # Blueiot is a separate opt-in artifact at the same version.
-proximiioSdk = "6.0.0-beta.6"
+proximiioSdk = "6.0.0-beta.7"
 # The map umbrella `api`-exposes core / kit / live / compose, so one line is the whole
 # library — the canvas, the floor controller, the position renderer and the Compose
 # wrapper. It brings MapLibre transitively.
