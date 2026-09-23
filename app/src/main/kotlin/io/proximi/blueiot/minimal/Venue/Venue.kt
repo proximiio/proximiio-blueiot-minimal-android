@@ -68,6 +68,12 @@ class Venue private constructor(
             sdk.detachPositionProvider(it)
             attachedProvider = null
         }
+        // Debug builds launched with a `journeyPlayback` extra play a journey instead of
+        // attaching the relay. Release builds never do. See `DebugPositionSource`.
+        DebugPositionSource.attach(sdk)?.let { playback ->
+            attachedProvider = playback.getOrNull()
+            return
+        }
         val host = VenueConfiguration.relayHost ?: return
         val endpoint = BlueiotCloudRelayEndpoint.fromText(host) ?: return
 

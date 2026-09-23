@@ -126,6 +126,15 @@ Fourteen files in the iOS app's folder layout, all in one Kotlin package
 | `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, detours, reordering, and the prompt shown when the visitor leaves the route |
 | `res/mipmap-anydpi-v26/ic_launcher.xml` | The app icon, a placeholder |
 
+Three more files belong to one build type each. They are outside the fourteen, and a
+product can delete them together with the one call to each in `MainActivity` and `Venue`:
+
+| File | What it owns |
+| --- | --- |
+| `src/debug/…/Venue/JourneyPlaybackLaunch.kt` | Reading the launch extras, and playing a journey in place of the relay |
+| `src/debug/…/Venue/DebugPositionSource.kt` | The debug build's switch between the relay and a journey playback |
+| `src/release/…/Venue/DebugPositionSource.kt` | The release build's switch, which always keeps the relay |
+
 The icon is a placeholder: an adaptive icon made of a flat colour
 (`res/values/colors.xml`) and the letter V drawn as a vector
 (`res/drawable/ic_launcher_foreground.xml`). Replace the foreground drawable and the
@@ -374,14 +383,46 @@ adb logcat -s 'Proximiio/*'
 
 ## Testing without the venue
 
-The Android SDK has no journey playback: `fetchJourney` and `JourneyPlaybackProvider` exist
-on iOS only. The iOS app's debug `-journeyPlayback` launch argument therefore has no
-counterpart here.
+There are two ways to see the app move without the venue's anchors: a journey played on
+the phone, in debug builds, and a journey played into the sandbox relay.
 
-The sandbox relay is the alternative. Proximi.io LiveView (`live.proximi.fi`) plays a
-journey stored in Proximi.io into the sandbox relay `relay-sandbox.proximi.fi`, and the
-relay reports it as wristband positions. The app receives them like positions from the
-venue. No app code changes:
+**A journey played on the phone.** A debug build launched with a `journeyPlayback` extra
+fetches that journey from Proximi.io with `fetchJourney(id)` and attaches a
+`JourneyPlaybackProvider` in place of the cloud relay. The positions are generated on the
+phone, and no relay is contacted. The wristband prompt still appears on first run; its
+value is not used while a journey plays.
+
+```sh
+adb shell am start -S -n io.proximi.blueiot.minimal/.MainActivity \
+  --es journeyPlayback '<organisation uuid>:<journey uuid>' \
+  --ef journeySpeed 2 \
+  --ez journeyLoop true
+```
+
+| Extra | What it is |
+| --- | --- |
+| `journeyPlayback` | The journey id, `<organisation uuid>:<uuid>`. Only journeys of the token's organisation are found |
+| `journeySpeed` | Optional. Journey seconds per real second, `0.5` to `10`; the SDK clamps other values. Default `1` |
+| `journeyLoop` | Optional. `true` starts again after the last waypoint. Default `false` |
+
+`-S` stops the running app first, so the extras reach a fresh start. A journey that
+cannot be fetched is reported in logcat under `JourneyPlayback`, and then no position
+source is attached:
+
+```sh
+adb logcat -s JourneyPlayback 'Proximiio/*'
+```
+
+The code is in the `debug` source set. A release build compiles
+`src/release/…/DebugPositionSource.kt` instead, which never replaces the relay, so the
+release APK contains neither the playback code nor the extra names. This is the
+counterpart of the iOS app's `-journeyPlayback` launch argument, which is inside
+`#if DEBUG`; Android reads intent extras because an Android app has no launch arguments.
+
+**A journey played into the sandbox relay.** Proximi.io LiveView (`live.proximi.fi`)
+plays a journey stored in Proximi.io into the sandbox relay `relay-sandbox.proximi.fi`,
+and the relay reports it as wristband positions. The app receives them like positions
+from the venue, in debug and release builds alike. No app code changes:
 
 1. In `secrets.properties`, set `BLUEIOT_CLOUD_RELAY_URL` to `relay-sandbox.proximi.fi`
    and `BLUEIOT_CLOUD_RELAY_TOKEN` to the sandbox relay's stream token. The sandbox relay
@@ -397,7 +438,7 @@ venue. No app code changes:
 ./gradlew :app:testDebugUnitTest
 ```
 
-Thirty-eight tests. All eight subjects are chosen because they fail without anything on
+Forty-three tests. All nine subjects are chosen because they fail without anything on
 screen looking wrong:
 
 - a wristband id read one way by the app and another way by the relay matches no tag, and
@@ -413,7 +454,10 @@ screen looking wrong:
 - a wrong deviation rule leaves a visitor off the route without a prompt, or keeps a
   prompt on screen after the visitor has returned (`DeviationPromptTests`, the seven tests
   of the iOS app under the same names);
-- an SDK log level mapped to the wrong logcat priority hides warnings behind a filter.
+- an SDK log level mapped to the wrong logcat priority hides warnings behind a filter;
+- a launch extra read wrongly plays the wrong journey, at the wrong speed, or attaches the
+  relay instead (`JourneyPlaybackLaunchTests`, in `src/testDebug` because the code it
+  tests exists in debug builds only).
 
 The screens are not tested; they hold no logic.
 
