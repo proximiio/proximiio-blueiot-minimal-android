@@ -76,8 +76,8 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.7` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.7` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.8` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.8` |
 | `io.proximi.map:proximiio-map` | `6.0.0-beta.9` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
@@ -191,13 +191,13 @@ hidden. Background location is never requested.
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
 iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
-manifest. At SDK `6.0.0-beta.7` and map `6.0.0-beta.9` the merged manifest holds:
+manifest. At SDK `6.0.0-beta.8` and map `6.0.0-beta.9` the merged manifest holds:
 
 | Permission | Declared by | Requested at runtime |
 | --- | --- | --- |
 | `INTERNET`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK` | The app (and the SDK) | No, granted at install |
 | `ACCESS_COARSE_LOCATION`, `POST_NOTIFICATIONS` | The app (and the SDK) | Yes, by `LocationPrompt` |
-| `ACCESS_FINE_LOCATION` | The SDK and MapLibre. The merged entry carries `maxSdkVersion="30"` | No |
+| `ACCESS_FINE_LOCATION` | The SDK and MapLibre | No. The app uses coarse location |
 | `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` | The SDK | No |
 | `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdkVersion="30"`) | The SDK | No, granted at install |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | The SDK | No, granted at install. `includesConnectedDeviceType = false` keeps the type out of the service |
