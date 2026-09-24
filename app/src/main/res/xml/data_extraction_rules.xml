@@ -2,17 +2,20 @@
 <!--
   Nothing this app stores is worth restoring onto another phone: the wristband id
   belongs to a band somebody was handed, a visit is an afternoon, and the diagnostics
-  log describes this phone's session. All three are excluded from cloud backup and
-  from device transfer, which is also why there is no `allowBackup` flag on the
+  log describes this phone's session. The SDK's encrypted token file is excluded too:
+  a restored copy cannot be decrypted on the new install. All four are excluded from
+  cloud backup and from device transfer, which is also why there is no `allowBackup` flag on the
   application — that one is deprecated from Android 12.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="BlueiotMinimal.xml" />
+        <exclude domain="sharedpref" path="io.proximi.sdk.xml" />
         <exclude domain="file" path="proximiio-diagnostics/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="BlueiotMinimal.xml" />
+        <exclude domain="sharedpref" path="io.proximi.sdk.xml" />
         <exclude domain="file" path="proximiio-diagnostics/" />
     </device-transfer>
 </data-extraction-rules>
