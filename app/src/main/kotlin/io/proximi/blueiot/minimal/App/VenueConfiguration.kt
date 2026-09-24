@@ -28,7 +28,7 @@ object VenueConfiguration {
     /**
      * The engine floor number for the venue's ground floor, from
      * `BLUEIOT_GROUND_FLOOR_NO`. Not a credential and not required: empty means 0, which
-     * is an engine numbering floors the way Proximi.io does. See [Venue.follow].
+     * is an engine numbering floors the way Proximi.io does. See [Venue.attachRelay].
      */
     val groundFloorNumber: Int = value(BuildConfig.BLUEIOT_GROUND_FLOOR_NO)?.toIntOrNull() ?: 0
 
