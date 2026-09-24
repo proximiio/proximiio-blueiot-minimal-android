@@ -71,8 +71,11 @@ import io.proximi.map.core.JourneyStop
 import io.proximi.map.core.MapLevelFormat
 import io.proximi.map.live.JourneyNavigator
 import io.proximi.map.live.ProximiioMapSession
+import io.proximi.sdk.Proximiio
 import io.proximi.sdk.amenities
+import io.proximi.sdk.amenity
 import io.proximi.sdk.core.model.ProximiioCoordinate
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -104,8 +107,8 @@ fun JourneyBar(
     val guidance by navigator.guidance.collectAsStateWithLifecycle()
     val position by session.position.collectAsStateWithLifecycle()
 
-    /** The venue's amenity kind titles, read once. */
-    var amenityTitles by remember { mutableStateOf(emptyMap<String, String>()) }
+    /** `true` once the SDK's amenity catalogue has been read, or its download failed. */
+    var isCatalogueRead by remember { mutableStateOf(false) }
     /** The detours on offer, named. An empty list shows no button. */
     var detours by remember { mutableStateOf(emptyList<Detour>()) }
     var isShowingPlan by remember { mutableStateOf(false) }
@@ -123,18 +126,22 @@ fun JourneyBar(
         // where the visitor is.
         navigator.start()
         // The only extra download in the app, and only for a visitor who started a visit.
-        // A failure costs the detours and nothing else. The SDK exposes no
-        // single-amenity lookup on Android, so the app builds the map once.
-        amenityTitles =
-            runCatching { session.sdk?.amenities().orEmpty() }
-                .getOrDefault(emptyList())
-                .mapNotNull { amenity -> amenity.title?.let { amenity.id to it } }
-                .toMap()
+        // `amenities()` reads the stored catalogue first: with one stored it reaches no
+        // network and cannot throw. A failure costs the detours and nothing else.
+        try {
+            session.sdk?.amenities()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // No catalogue: `amenity(id)` then names nothing and no detour is offered.
+        }
+        isCatalogueRead = true
     }
 
     // Re-offered as the visitor moves: "nearest" is measured from the live position.
-    LaunchedEffect(position?.coordinate, amenityTitles, places) {
-        detours = offers(places, position?.coordinate, amenityTitles)
+    LaunchedEffect(position?.coordinate, isCatalogueRead, places) {
+        val sdk = session.sdk
+        detours = if (isCatalogueRead && sdk != null) offers(sdk, places, position?.coordinate) else emptyList()
     }
 
     // `Journey` carries each stop's state, so saving it on every change is the whole of
@@ -374,21 +381,22 @@ private data class Detour(
 
 /**
  * Which amenity kinds a venue has comes from its own data
- * ([VenuePoi.nearestByAmenity]). What each kind is called comes from the SDK's amenity
- * catalogue. An id the catalogue cannot name is left out rather than shown as a uuid;
- * this app keeps no titles of its own.
+ * ([VenuePoi.nearestByAmenity]). What each kind is called comes from the SDK's stored
+ * amenity catalogue: `amenity(id)` reads one row, locally and offline. An id the
+ * catalogue cannot name is left out rather than shown as a uuid; this app keeps no
+ * titles of its own.
  */
-private fun offers(
+private suspend fun offers(
+    sdk: Proximiio,
     places: List<VenuePoi>,
     here: io.proximi.map.core.MapCoordinate?,
-    amenityTitles: Map<String, String>,
 ): List<Detour> {
     if (here == null) return emptyList()
     val from = ProximiioCoordinate(latitude = here.latitude, longitude = here.longitude)
     return VenuePoi
         .nearestByAmenity(places, from)
         .mapNotNull { (amenityId, poi) ->
-            amenityTitles[amenityId]?.let { Detour(amenityId, it, poi) }
+            sdk.amenity(amenityId)?.title?.let { Detour(amenityId, it, poi) }
         }.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, Detour::title))
 }
 
