@@ -31,12 +31,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import io.proximi.sdk.Proximiio
+import io.proximi.sdk.ProximiioDiagnosticsEventKind
+import io.proximi.sdk.recordDiagnosticsEvent
 import io.proximi.sdk.refreshPermissions
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        SdkLogcat.installInDebugBuilds()
         DebugPositionSource.readLaunch(intent)
         setContent {
             MaterialTheme {
@@ -44,6 +46,21 @@ class MainActivity : ComponentActivity() {
                     RootScreen()
                 }
             }
+        }
+    }
+
+    // Records the app leaving and returning to the screen in the diagnostics log. The SDK
+    // does not observe it itself. This is the app's only Activity, so its start and stop
+    // are the app's.
+    override fun onStart() {
+        super.onStart()
+        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "scene: foreground")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) {
+            Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "scene: background")
         }
     }
 }
@@ -137,5 +154,8 @@ private fun CannotReachTheVenue(reason: String) {
     ) {
         Text("Cannot reach the venue", style = MaterialTheme.typography.titleMedium)
         Text(reason, style = MaterialTheme.typography.bodyMedium)
+        // No SDK is running here, so the report holds the recorded log alone. That log
+        // is what shows why the start failed.
+        SupportReportButton(sdk = null)
     }
 }

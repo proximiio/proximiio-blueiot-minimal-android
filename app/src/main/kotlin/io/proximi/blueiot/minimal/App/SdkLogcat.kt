@@ -4,7 +4,9 @@
 //
 //  Forwards the SDK's log to logcat in debug builds. The SDK installs no log sink of its
 //  own, so without this `adb logcat` shows nothing from the SDK. Release builds install
-//  nothing. Replace it with the product's own logger or crash reporter.
+//  nothing. `BlueiotMinimalApplication` installs it before the diagnostics recording
+//  starts, and the recording forwards each line to it, so both receive the SDK's log.
+//  Replace it with the product's own logger or crash reporter.
 //
 package io.proximi.blueiot.minimal
 

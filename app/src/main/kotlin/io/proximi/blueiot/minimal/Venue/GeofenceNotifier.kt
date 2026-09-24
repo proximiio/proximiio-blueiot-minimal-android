@@ -6,8 +6,8 @@
 //  One channel, one sentence and one notification id per geofence. Geofences are
 //  defined in Proximi.io Portal and evaluated by the SDK against every position.
 //
-//  This file has no iOS twin. The iOS app posts no notifications; Android does because
-//  the product required it.
+//  On iOS this is in `Venue.swift` and `NotificationPrompt.swift`. Each posted or
+//  suppressed notification is also a line in the diagnostics log, as on iOS.
 //
 //  Notifications arrive with the screen off for the same four reasons positioning
 //  continues (`Venue.kt`): the geofence is evaluated in the process the foreground
@@ -29,11 +29,16 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import io.proximi.sdk.Proximiio
+import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.geofenceEvents
 import io.proximi.sdk.geofencing.GeofenceEvent
+import io.proximi.sdk.recordDiagnosticsEvent
 
-/** One geofence transition, reduced to what a notification needs. */
-data class PlaceNote(val id: Int, val title: String, val body: String)
+/**
+ * One geofence transition, reduced to what a notification needs, and its diagnostics
+ * log line, for example `geofence enter · Main Hall`.
+ */
+data class PlaceNote(val id: Int, val title: String, val body: String, val logLine: String)
 
 class GeofenceNotifier(context: Context) {
     private val appContext: Context = context.applicationContext
@@ -60,6 +65,7 @@ class GeofenceNotifier(context: Context) {
             ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
+            Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "${note.logLine} · not authorized")
             return
         }
         // The Activity is `singleTop` in the manifest, so a tap brings the running map
@@ -78,6 +84,7 @@ class GeofenceNotifier(context: Context) {
                 .setAutoCancel(true)
                 .build()
         manager.notify(note.id, notification)
+        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "${note.logLine} · notified")
     }
 
     companion object {
@@ -109,6 +116,7 @@ class GeofenceNotifier(context: Context) {
                     } else {
                         "You have left $name."
                     },
+                logLine = "geofence ${if (event is GeofenceEvent.Entered) "enter" else "exit"} · $name",
             )
         }
     }

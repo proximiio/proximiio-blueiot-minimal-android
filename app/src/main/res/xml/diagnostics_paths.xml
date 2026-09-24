@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The one directory `SupportReport` shares from. The SDK writes the report to
+  `cacheDir/proximiio-reports/`. The diagnostics log itself, in
+  `filesDir/proximiio-diagnostics/`, is not exposed.
+-->
+<paths>
+    <cache-path name="reports" path="proximiio-reports/" />
+</paths>

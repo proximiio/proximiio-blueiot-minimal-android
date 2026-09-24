@@ -61,6 +61,7 @@
     -->
 
     <application
+        android:name=".BlueiotMinimalApplication"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/full_backup_content"
         android:icon="@mipmap/ic_launcher"
@@ -80,5 +81,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--
+          Shares the SDK's diagnostics report (`SupportReport`). It exposes
+          `cacheDir/proximiio-reports/` only, where the SDK writes the report, and grants
+          read access per share.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.diagnostics"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/diagnostics_paths" />
+        </provider>
     </application>
 </manifest>

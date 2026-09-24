@@ -8,9 +8,6 @@
 //  permissions and the visitor's grant; a build missing the permissions is reported in
 //  the SDK log.
 //
-//  There is no `DiagnosticsTests`. The Android SDK records no diagnostics log (README,
-//  "The diagnostics log"), so its iOS twin has nothing to assert against.
-//
 package io.proximi.blueiot.minimal
 
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayConfiguration

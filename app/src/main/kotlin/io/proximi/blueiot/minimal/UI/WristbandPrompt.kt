@@ -42,12 +42,15 @@ import io.proximi.map.kit.MapAttribution
  *   MapLibre's attribution control (`VenueMapScreen`), so an app that hides it must
  *   show the credits itself. Empty on first run, when no style is loaded.
  * @param onCancel `null` on first run, when there is nothing to return to.
+ * @param footer shown under the credits. The map's sheet puts the support report
+ *   button here.
  */
 @Composable
 fun WristbandPrompt(
     current: String = "",
     credits: List<MapAttribution> = emptyList(),
     onCancel: (() -> Unit)? = null,
+    footer: @Composable () -> Unit = {},
     onSave: (WristbandId) -> Unit,
 ) {
     var text by rememberSaveable(current) { mutableStateOf(current) }
@@ -100,6 +103,8 @@ fun WristbandPrompt(
                 }
             }
         }
+
+        footer()
 
         Row(
             modifier = Modifier.fillMaxWidth(),

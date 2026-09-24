@@ -6,4 +6,5 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="BlueiotMinimal.xml" />
+    <exclude domain="file" path="proximiio-diagnostics/" />
 </full-backup-content>

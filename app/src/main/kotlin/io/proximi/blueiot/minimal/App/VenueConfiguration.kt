@@ -32,6 +32,9 @@ object VenueConfiguration {
      */
     val groundFloorNumber: Int = value(BuildConfig.BLUEIOT_GROUND_FLOOR_NO)?.toIntOrNull() ?: 0
 
+    /** The two credentials, passed to the diagnostics recorder for redaction. */
+    val secrets: List<String> get() = listOfNotNull(token, relayToken)
+
     /**
      * The keys that are still empty, as one sentence, or `null` when none are. Covers
      * the three required credentials only.

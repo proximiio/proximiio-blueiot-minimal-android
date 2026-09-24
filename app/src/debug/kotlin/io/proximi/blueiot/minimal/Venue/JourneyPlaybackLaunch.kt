@@ -16,17 +16,16 @@
 package io.proximi.blueiot.minimal
 
 import android.content.Intent
-import android.util.Log
 import io.proximi.sdk.Proximiio
+import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.attachPositionProvider
 import io.proximi.sdk.fetchJourney
 import io.proximi.sdk.journey.JourneyPlaybackConfiguration
 import io.proximi.sdk.journey.JourneyPlaybackProvider
+import io.proximi.sdk.recordDiagnosticsEvent
 import kotlinx.coroutines.CancellationException
 
 object JourneyPlaybackLaunch {
-    private const val TAG = "JourneyPlayback"
-
     const val JOURNEY_EXTRA = "journeyPlayback"
     const val SPEED_EXTRA = "journeySpeed"
     const val LOOP_EXTRA = "journeyLoop"
@@ -74,8 +73,8 @@ object JourneyPlaybackLaunch {
 
     /**
      * Fetches the journey and attaches its playback. Returns the provider name, or the
-     * failure when the journey cannot be fetched; logcat records the reason under
-     * `JourneyPlayback`. The relay is not attached in either case.
+     * failure when the journey cannot be fetched; the diagnostics log records the
+     * reason. The relay is not attached in either case.
      */
     suspend fun attach(
         request: Request,
@@ -95,13 +94,19 @@ object JourneyPlaybackLaunch {
                         ),
                 )
             val looping = if (request.loops) ", looping" else ""
-            Log.println(Log.INFO, TAG, "Playing ${journey.displayName} at ${provider.configuration.speed}x$looping")
+            Proximiio.recordDiagnosticsEvent(
+                ProximiioDiagnosticsEventKind.state,
+                "journey playback: ${journey.displayName}, ${provider.configuration.speed}x$looping",
+            )
             sdk.attachPositionProvider(provider)
             Result.success(provider.name)
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
-            Log.println(Log.WARN, TAG, "The journey could not be played: ${error.message ?: error}")
+            Proximiio.recordDiagnosticsEvent(
+                ProximiioDiagnosticsEventKind.state,
+                "journey playback failed: ${error.message ?: error}",
+            )
             Result.failure(error)
         }
 }

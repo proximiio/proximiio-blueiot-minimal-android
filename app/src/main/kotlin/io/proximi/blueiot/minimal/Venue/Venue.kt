@@ -22,12 +22,14 @@ package io.proximi.blueiot.minimal
 import android.content.Context
 import io.proximi.sdk.Proximiio
 import io.proximi.sdk.ProximiioConfiguration
+import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.attachPositionProvider
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayConfiguration
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayEndpoint
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayPositionProvider
 import io.proximi.sdk.detachPositionProvider
 import io.proximi.sdk.loadRouteNetwork
+import io.proximi.sdk.recordDiagnosticsEvent
 import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +66,7 @@ class Venue private constructor(
      * number the venue has no floor for is reported in the SDK log.
      */
     suspend fun follow(wristband: WristbandId) {
+        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "wristband: ${wristband.canonical}")
         attachedProvider?.let {
             sdk.detachPositionProvider(it)
             attachedProvider = null

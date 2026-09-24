@@ -2,8 +2,9 @@
 //  GeofenceNotifierTests.kt
 //  BlueiotMinimalTests
 //
-//  What `GeofenceNotifier` decides: the notification text and the id it is posted under.
-//  No notification is posted here. No iOS twin: the iOS app posts no notifications
+//  What `GeofenceNotifier` decides: the notification text, the diagnostics log line and
+//  the id it is posted under. No notification is posted here. The iOS app keeps one
+//  notification per event rather than per geofence, so these tests have other names
 //  (README, "Place notifications").
 //
 package io.proximi.blueiot.minimal
@@ -27,6 +28,7 @@ class GeofenceNotifierTests {
         val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Entered(mainHall)))
         assertEquals("Main Hall", note.title)
         assertEquals("You are now inside Main Hall.", note.body)
+        assertEquals("geofence enter · Main Hall", note.logLine)
     }
 
     /** The exit event carries a dwell time. The sentence does not use it. */
@@ -35,6 +37,7 @@ class GeofenceNotifierTests {
         val note = requireNotNull(GeofenceNotifier.note(GeofenceEvent.Exited(mainHall, dwellTime = 412.0)))
         assertEquals("Main Hall", note.title)
         assertEquals("You have left Main Hall.", note.body)
+        assertEquals("geofence exit · Main Hall", note.logLine)
     }
 
     /** A geofence with no name, or a blank one, produces no notification. */
