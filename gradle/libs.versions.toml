@@ -26,7 +26,7 @@ jvmTarget = "17"
 # --- proximi.io ------------------------------------------------------------
 # The SDK umbrella `api`-exposes core / positioning / routesnapping / wayfinding / …;
 # Blueiot is a separate opt-in artifact at the same version.
-proximiioSdk = "6.0.0-beta.10"
+proximiioSdk = "6.0.0-beta.11"
 # The map umbrella `api`-exposes core / kit / live / compose, so one line is the whole
 # library — the canvas, the floor controller, the position renderer and the Compose
 # wrapper. It brings MapLibre transitively.
