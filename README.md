@@ -21,7 +21,8 @@ has no export.
 ## What it is not
 
 It has no settings screen, no diagnostics screen, no staff mode, no engine controls, no
-event log, no offline package and no step list. Nothing reorders a visit on its own. It
+event log, no offline package and no step list. Nothing reorders a started visit without a
+tap. It
 uses no navigation library, no dependency injection and no `ViewModel`: `remember` and
 `rememberSaveable` hold every piece of state in the app.
 
@@ -81,7 +82,7 @@ needs no credentials to read. There is no `mavenLocal()`.
 | --- | --- |
 | `io.proximi.sdk:proximiio` | `6.0.0-beta.13` |
 | `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.13` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.11` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.12` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
@@ -213,7 +214,7 @@ hidden. Background location is never requested.
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
 iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
-manifest. At SDK `6.0.0-beta.13` and map `6.0.0-beta.11` the merged manifest holds:
+manifest. At SDK `6.0.0-beta.13` and map `6.0.0-beta.12` the merged manifest holds:
 
 | Permission | Declared by | Requested at runtime |
 | --- | --- | --- |
@@ -325,9 +326,12 @@ nothing else.
 ## A visit
 
 The list button next to the search opens the same search sheet in multi-select. The
-places tapped, in that order, become a `Journey`. `JourneyNavigator` then owns every route
-computation in the walk: it draws and follows one leg at a time through the same session
-as the map.
+places tapped, in that order, become a `Journey`. Before the visit starts, `JourneyBar`
+calls `proposeOrder(JourneyOrderOrigin.VISITOR)` and applies the result when it is
+shorter. The first place can move. Without a position the call returns `null` and the tap
+order is kept. A restored visit that has already started is not reordered.
+`JourneyNavigator` then owns every route computation in the walk: it draws and follows one
+leg at a time through the same session as the map.
 
 The navigator does not re-route a visitor who leaves the leg. `JourneyBar` sets
 `deviationPolicy = JourneyDeviationPolicy.ASK_APP`, and the drawn leg stays until the
@@ -351,7 +355,7 @@ The plan is changed on the bar and in **Your visit**, the list button on the bar
 | **Back to the plan** | On the bar during a detour. Calls `cancelDetour()` |
 | **+** | Opens the same multi-select search. `JourneyNavigator.add` puts each pick after everything still to be walked and leaves the leg in hand alone. It returns `false` for a place the plan already holds, which the sheet reports. It is available after the last stop too: adding revives a finished visit and makes the new stop active |
 | **Drag** | Long-press a row and drag to reorder what is still ahead. The rows are `JourneyNavigator.reorderableStops`, the list `move(stopId, toIndex)` indexes into, so the app holds no second copy of which stops may move. Compose has no `.onMove`, so this gesture is the app's, in `JourneyBar.ReorderableStops` |
-| **Save N m by reordering** | A shorter order, measured by `proposeOrder`. Neither the library nor the sheet applies one; `apply` does. It is re-measured whenever the stops change, because `apply` ignores a proposal that no longer describes the journey |
+| **Save N m by reordering** | `proposeOrder(JourneyOrderOrigin.VISITOR)` measures a shorter order from the visitor's position and returns a proposal. The stop being walked to can move. Without a position the sheet uses `proposeOrder(JourneyOrderOrigin.ACTIVE_STOP)`, which keeps the stop being walked to first. A tap applies the proposal. It is measured again when the remaining stops, their order or the live stop change, because `apply` refuses a proposal after any of those changes and returns `false`. The button is hidden while `canApply` is `false` |
 | **Show the whole plan on the map** | Sets `session.journeyOverlayStyle`, which draws the rest of the plan under the leg in hand. Off by default |
 
 "Stop off" is a detour. Which amenity kinds a venue has is read from the venue's own

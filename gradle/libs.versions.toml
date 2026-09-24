@@ -30,7 +30,7 @@ proximiioSdk = "6.0.0-beta.13"
 # The map umbrella `api`-exposes core / kit / live / compose, so one line is the whole
 # library — the canvas, the floor controller, the position renderer and the Compose
 # wrapper. It brings MapLibre transitively.
-proximiioMap = "6.0.0-beta.11"
+proximiioMap = "6.0.0-beta.12"
 
 # --- androidx --------------------------------------------------------------
 androidxCore = "1.19.0"

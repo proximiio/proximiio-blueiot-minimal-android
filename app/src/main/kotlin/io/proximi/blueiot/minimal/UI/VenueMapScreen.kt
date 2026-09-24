@@ -291,7 +291,8 @@ fun VenueMapScreen(
 
     if (isPlanningVisit) {
         // The same search sheet, picking several places. The tap order is the walk
-        // order.
+        // order until `JourneyBar` starts the visit; it then applies the shortest order
+        // from the visitor's position.
         ModalBottomSheet(onDismissRequest = { isPlanningVisit = false }) {
             PoiSearchSheet(pois = places, allowsMultiple = true) { picked ->
                 isPlanningVisit = false

@@ -11,9 +11,10 @@
 //  re-route a visitor who leaves the leg; this screen asks the visitor instead
 //  (`DeviationPrompt`).
 //
-//  Neither the library nor this screen reorders a visit on its own: `proposeOrder`
-//  measures an order and `apply` is what applies it, and `replanFromHere` runs only
-//  when the visitor asks for it.
+//  The library does not reorder a visit on its own. This screen applies one order
+//  without a tap: the shortest order from the visitor's position, once, before a new
+//  visit starts. After that `proposeOrder` measures an order, a tap on it calls `apply`,
+//  and `replanFromHere` runs only when the visitor asks for it.
 //
 package io.proximi.blueiot.minimal
 
@@ -65,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.proximi.map.core.Journey
 import io.proximi.map.core.JourneyDeviationPolicy
 import io.proximi.map.core.JourneyEvent
+import io.proximi.map.core.JourneyOrderOrigin
 import io.proximi.map.core.JourneyOrderProposal
 import io.proximi.map.core.JourneyOverlayStyle
 import io.proximi.map.core.JourneyStop
@@ -122,6 +124,15 @@ fun JourneyBar(
     }
 
     LaunchedEffect(navigator) {
+        // A new visit is put in the shortest order from the visitor's position before it
+        // starts. `proposeOrder(VISITOR)` can move the first pick; before `start()` it
+        // measures from the session's latest position. It returns `null` without one,
+        // and the tap order is kept. A restored visit that has already started is not
+        // reordered.
+        if (navigator.journey.value.stops.all { it.state == JourneyStop.State.PENDING }) {
+            val order = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
+            if (order != null && order.isImprovement) navigator.apply(order)
+        }
         // Nothing is drawn until the first position, because the leg is computed from
         // where the visitor is.
         navigator.start()
@@ -420,10 +431,16 @@ private fun JourneyPlanSheet(
 
     val reorderable = navigator.reorderableStops
 
-    // `proposeOrder` measures every walk between the remaining stops and returns a
-    // proposal; it never applies itself. It is re-measured whenever those stops change,
-    // because `apply` ignores a proposal that no longer describes the journey.
-    LaunchedEffect(reorderable.map { it.id }) { proposal = navigator.proposeOrder() }
+    // `proposeOrder(VISITOR)` measures the remaining stops from the visitor's position,
+    // the stop being walked to included, and returns a proposal. It does not apply it.
+    // Without a position it returns `null`; `ACTIVE_STOP` then keeps the stop being
+    // walked to first and orders the rest. `apply` refuses a proposal after the remaining
+    // stops or their order change, or after the live stop changes, so the proposal is
+    // measured again on each of those changes.
+    LaunchedEffect(listOf(navigator.activeStop?.id.orEmpty()) + reorderable.map { it.id }) {
+        proposal = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
+            ?: navigator.proposeOrder(JourneyOrderOrigin.ACTIVE_STOP)
+    }
 
     Column(
         modifier =
@@ -442,16 +459,17 @@ private fun JourneyPlanSheet(
             TextButton(onClick = onDismiss) { Text("Done") }
         }
 
-        proposal?.takeIf { it.isImprovement }?.let { offer ->
+        proposal?.takeIf { it.isImprovement && navigator.canApply(it) }?.let { offer ->
             TextButton(onClick = {
                 scope.launch {
+                    // `false`: the plan changed after the proposal was measured, and
+                    // nothing was applied.
                     navigator.apply(offer)
                     proposal = null
                 }
             }) { Text("Save ${offer.savedMeters.roundToInt()} m by reordering") }
             Text(
-                "Measured, not applied. Nothing moves until you tap it, and the stop you are " +
-                    "walking to stays where it is.",
+                "Measured from where you are. Nothing moves until you tap it.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
