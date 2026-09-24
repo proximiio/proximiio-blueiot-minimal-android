@@ -135,6 +135,50 @@ class VisitRulesTests {
         assertNull(StartOrder.note(null, applied = false))
     }
 
+    /** The first stop was reached, or a stop-off added, before the first position. */
+    @Test
+    fun theWaitingNoteClearsWhenTheVisitIsNoLongerOwedOnTheFirstFix() {
+        assertNull(StartOrder.noteAfterFirstFix(StartOrder.WAITING_NOTE, result = null))
+    }
+
+    /** `proposeOrder(JourneyOrderOrigin.VISITOR)` returned `null` on the first position. */
+    @Test
+    fun theWaitingNoteClearsWhenTheFirstFixCannotBeMeasured() {
+        val result = StartOrder.note(null, applied = false)
+        assertNull(StartOrder.noteAfterFirstFix(StartOrder.WAITING_NOTE, result))
+    }
+
+    /** `apply` refused both shorter orders as stale. */
+    @Test
+    fun theWaitingNoteClearsWhenBothProposalsAreRefused() {
+        var note: String? = StartOrder.WAITING_NOTE
+        repeat(2) {
+            val result = StartOrder.note(proposal(saving = 42.0), applied = false)
+            note = StartOrder.noteAfterFirstFix(note, result)
+        }
+        assertNull(note)
+    }
+
+    /**
+     * A result replaces the waiting note. With a position at start there is no waiting
+     * note and the result is shown as before.
+     */
+    @Test
+    fun aResultNoteReplacesTheWaitingNote() {
+        val shortened = StartOrder.note(proposal(saving = 42.4), applied = true)
+        assertEquals(
+            "Stops put in the shortest order: 42 m less to walk.",
+            StartOrder.noteAfterFirstFix(StartOrder.WAITING_NOTE, shortened),
+        )
+        val alreadyShortest = StartOrder.note(proposal(saving = 0.0), applied = false)
+        assertEquals(
+            "Your stops are already in the shortest order.",
+            StartOrder.noteAfterFirstFix(StartOrder.WAITING_NOTE, alreadyShortest),
+        )
+        assertEquals(shortened, StartOrder.noteAfterFirstFix(null, shortened))
+        assertNull(StartOrder.noteAfterFirstFix(null, result = null))
+    }
+
     // MARK: - OrderAdvice
 
     @Test

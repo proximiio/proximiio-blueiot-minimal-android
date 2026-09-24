@@ -150,6 +150,7 @@ fun JourneyBar(
     suspend fun orderNewVisit() {
         if (!StartOrder.isOwed(navigator.journey.value)) {
             ordersOnFirstFix = false
+            orderNote = StartOrder.noteAfterFirstFix(orderNote, result = null)
             return
         }
         if (session.position.value == null) {
@@ -161,8 +162,9 @@ fun JourneyBar(
         repeat(2) {
             val proposal = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
             val applied = proposal != null && proposal.isImprovement && navigator.apply(proposal)
-            orderNote = StartOrder.note(proposal, applied)
-            if (orderNote != null || proposal == null) return
+            val result = StartOrder.note(proposal, applied)
+            orderNote = StartOrder.noteAfterFirstFix(orderNote, result)
+            if (result != null || proposal == null) return
         }
     }
 

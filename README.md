@@ -342,6 +342,8 @@ shorter. The first place can move. The bar then says which happened for 8 second
 put in the shortest order: N m less to walk." or "Your stops are already in the shortest
 order." Without a position the call returns `null`; the tap order is kept, the bar says the
 order is measured when the position arrives, and the first position runs the same call.
+On that position the result replaces the note for 8 seconds; without a result the note is
+cleared.
 `StartOrder` holds the rule: no order is applied once a stop is reached, done or skipped,
 or a stop-off is in the plan. A restored visit that has already started is not reordered.
 `JourneyNavigator` then owns every route computation in the walk: it draws and follows one
@@ -564,7 +566,7 @@ visitor's wristband id.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Sixty-nine tests in fourteen classes. Each covers behaviour that fails without anything
+Seventy-three tests in fourteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
@@ -577,7 +579,7 @@ on screen looking wrong. The screens are not tested; they hold no logic.
 | `GeofenceNotifierTests` | 5 | The notification title, body, log line and id. A privacy zone announced on a lock screen is what a privacy zone exists to prevent |
 | `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed` and the background settings of `Venue.configuration`. A flag left at its default stops position updates minutes after the screen locks |
 | `DiagnosticsTests` | 2 | No configured secret reaches the log verbatim, and the report is inside the directory the `FileProvider` exposes |
-| `VisitRulesTests` | 11 | `StartOrder`, `OrderAdvice`, `StopOff`, `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
+| `VisitRulesTests` | 15 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
 | `DeviationPromptTests` | 7 | `DeviationPrompt.after`: the events that open, close and keep the deviation prompt, and its sentences |
 | `SdkLogcatTests` | 2 | Each SDK log level maps to a logcat priority, and the tag names the category |
 | `JourneyPlaybackLaunchTests` | 5 | Debug builds only. The launch extras in each form `adb` sends them |

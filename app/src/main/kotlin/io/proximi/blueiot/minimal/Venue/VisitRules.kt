@@ -50,6 +50,20 @@ object StartOrder {
         if (!proposal.isImprovement || meters < 1) return "Your stops are already in the shortest order."
         return if (applied) "Stops put in the shortest order: $meters m less to walk." else null
     }
+
+    /**
+     * The note on the bar once the first position has been handled: ordered, found not
+     * owed, not measured, or refused.
+     *
+     * @param current the note on the bar.
+     * @param result the note from [note], or `null`.
+     * @return [result] when there is one. Otherwise [current], except the waiting note,
+     *   which is cleared: no position is awaited any more.
+     */
+    fun noteAfterFirstFix(
+        current: String?,
+        result: String?,
+    ): String? = result ?: current.takeUnless { it == WAITING_NOTE }
 }
 
 /** The order row in **Your visit**. */
