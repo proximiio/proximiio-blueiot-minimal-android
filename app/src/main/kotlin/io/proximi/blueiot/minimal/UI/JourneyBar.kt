@@ -12,9 +12,10 @@
 //  (`DeviationPrompt`).
 //
 //  The library does not reorder a visit on its own. This screen applies one order
-//  without a tap: the shortest order from the visitor's position, once, before a new
-//  visit starts. After that `proposeOrder` measures an order, a tap on it calls `apply`,
-//  and `replanFromHere` runs only when the visitor asks for it.
+//  without a tap: the shortest order from the visitor's position, once, for a new visit,
+//  and says so on the bar. Without a position it waits for the first one. After that
+//  `proposeOrder` measures an order, a tap on it calls `apply`, and `replanFromHere` runs
+//  only when the visitor asks for it.
 //
 package io.proximi.blueiot.minimal
 
@@ -27,12 +28,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DragHandle
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -53,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -78,11 +84,15 @@ import io.proximi.sdk.amenities
 import io.proximi.sdk.amenity
 import io.proximi.sdk.core.model.ProximiioCoordinate
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.roundToInt
 
 private val STOP_ROW_HEIGHT = 56.dp
+
+/** How long the order note stays on the bar. */
+private const val ORDER_NOTE_MILLIS = 8_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +126,45 @@ fun JourneyBar(
     var isShowingPlan by remember { mutableStateOf(false) }
     /** The open deviation prompt, or `null`. Set from `navigator.events`. */
     var prompt by remember(navigator) { mutableStateOf<DeviationPrompt?>(null) }
+    /** The line under the header after a new visit is ordered (`StartOrder`). */
+    var orderNote by remember(navigator) { mutableStateOf<String?>(null) }
+    /** `true` while a new visit waits for its first position to be ordered. */
+    var ordersOnFirstFix by remember(navigator) { mutableStateOf(false) }
+    // Ends the navigator once, before `onEnd`. `end()` sets `session.guidanceRules` to
+    // `null` and `onEnd` sets the single-route rules again, so nothing may end the
+    // navigator after `onEnd`.
+    val ending = remember(navigator) { VisitEnding(navigator::end) }
+    val currentOnEnd by rememberUpdatedState(onEnd)
+    val endVisit = { ending.end(currentOnEnd) }
+
+    /**
+     * Puts a new visit in the shortest order from the visitor's position and sets
+     * `orderNote`.
+     *
+     * `proposeOrder(VISITOR)` measures from the session's latest position, before
+     * `start()` too, and can move the first stop. Without a position it returns `null`;
+     * the tap order is kept and this runs again on the first position. `apply` refuses a
+     * proposal after the plan or the live stop changed (the first position activates a
+     * stop), so a refused proposal is measured once more.
+     */
+    suspend fun orderNewVisit() {
+        if (!StartOrder.isOwed(navigator.journey.value)) {
+            ordersOnFirstFix = false
+            return
+        }
+        if (session.position.value == null) {
+            ordersOnFirstFix = true
+            orderNote = StartOrder.WAITING_NOTE
+            return
+        }
+        ordersOnFirstFix = false
+        repeat(2) {
+            val proposal = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
+            val applied = proposal != null && proposal.isImprovement && navigator.apply(proposal)
+            orderNote = StartOrder.note(proposal, applied)
+            if (orderNote != null || proposal == null) return
+        }
+    }
 
     // `events` delivers only the events emitted after collection starts. Collection
     // ends when this effect leaves the composition.
@@ -124,14 +173,10 @@ fun JourneyBar(
     }
 
     LaunchedEffect(navigator) {
-        // A new visit is put in the shortest order from the visitor's position before it
-        // starts. `proposeOrder(VISITOR)` can move the first pick; before `start()` it
-        // measures from the session's latest position. It returns `null` without one,
-        // and the tap order is kept. A restored visit that has already started is not
-        // reordered.
+        // A new visit (every stop pending) is put in the shortest order before it
+        // starts. A restored visit that has already started is not reordered.
         if (navigator.journey.value.stops.all { it.state == JourneyStop.State.PENDING }) {
-            val order = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
-            if (order != null && order.isImprovement) navigator.apply(order)
+            orderNewVisit()
         }
         // Nothing is drawn until the first position, because the leg is computed from
         // where the visitor is.
@@ -159,7 +204,21 @@ fun JourneyBar(
     // restoring a visit across launches.
     LaunchedEffect(plan) { JourneyStore.save(plan, store) }
 
-    DisposableEffect(navigator) { onDispose { navigator.end() } }
+    // The first position of a new visit that was started without one.
+    LaunchedEffect(navigator, position == null) {
+        if (ordersOnFirstFix && position != null) orderNewVisit()
+    }
+
+    // The note stays 8 s. The waiting note stays until the first position.
+    LaunchedEffect(orderNote) {
+        if (orderNote == null || ordersOnFirstFix) return@LaunchedEffect
+        delay(ORDER_NOTE_MILLIS)
+        orderNote = null
+    }
+
+    // After `endVisit` this does nothing: a second `end()` would switch the map screen's
+    // single-route guidance off.
+    DisposableEffect(navigator) { onDispose { ending.disposed() } }
 
     Surface(
         modifier = modifier.padding(16.dp),
@@ -179,8 +238,9 @@ fun JourneyBar(
                 stop != null ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
+                            val isStopOff = navigator.detourStop != null
                             Text(
-                                if (navigator.detourStop == null) stop.title else "${stop.title} — on the way",
+                                if (isStopOff) StopOff.title(stop) else stop.title,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -197,8 +257,15 @@ fun JourneyBar(
                                     }
                                 }
                             Text(
-                                parts.joinToString(" · "),
-                                maxLines = 1,
+                                if (isStopOff) {
+                                    StopOff.status(
+                                        hasArrived = navigator.hasArrived,
+                                        next = navigator.reorderableStops.firstOrNull()?.title,
+                                    )
+                                } else {
+                                    parts.joinToString(" · ")
+                                },
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -213,7 +280,7 @@ fun JourneyBar(
                         // new one active and draws its leg. The way into the plan must
                         // therefore stay reachable after the last stop.
                         PlanButton { isShowingPlan = true }
-                        TextButton(onClick = onEnd) { Text("Finish") }
+                        TextButton(onClick = endVisit) { Text("Finish") }
                     }
 
                 else ->
@@ -222,6 +289,8 @@ fun JourneyBar(
                         style = MaterialTheme.typography.bodySmall,
                     )
             }
+
+            orderNote?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
 
             GuidanceLine(guidance)
 
@@ -249,7 +318,9 @@ fun JourneyBar(
                     Button(onClick = { scope.launch { navigator.advance() } }) { Text("Continue") }
                 }
                 if (navigator.detourStop == null) {
-                    DetourMenu(detours) { poi -> scope.launch { navigator.detour(JourneyStop(poi)) } }
+                    DetourMenu(detours, goingTo = navigator.activeStop?.title) { poi ->
+                        scope.launch { navigator.detour(JourneyStop(poi)) }
+                    }
                     TextButton(onClick = { scope.launch { navigator.skip() } }) { Text("Skip") }
                 } else {
                     TextButton(onClick = { scope.launch { navigator.cancelDetour() } }) {
@@ -268,7 +339,7 @@ fun JourneyBar(
                 onDismiss = { isShowingPlan = false },
                 onEnd = {
                     isShowingPlan = false
-                    onEnd()
+                    endVisit()
                 },
             )
         }
@@ -357,13 +428,16 @@ private fun PlanButton(onClick: () -> Unit) {
 }
 
 /**
- * `JourneyNavigator.detour(stop)` inserts a stop before the one being walked to and
- * routes there immediately. The plan resumes from wherever the visitor ends up, not
- * from where they left it.
+ * A stop-off: the nearest place of one kind, walked to before the planned stop.
+ * `JourneyNavigator.detour(stop)` inserts it before the active stop and routes to it
+ * immediately. **Continue** at the stop-off, or **Back to the plan** on the way, returns
+ * to the plan from the visitor's current position. Each item names the kind and the
+ * place.
  */
 @Composable
 private fun DetourMenu(
     detours: List<Detour>,
+    goingTo: String?,
     onPick: (VenuePoi) -> Unit,
 ) {
     if (detours.isEmpty()) return
@@ -371,9 +445,20 @@ private fun DetourMenu(
     Box {
         TextButton(onClick = { isOpen = true }) { Text("Stop off") }
         DropdownMenu(expanded = isOpen, onDismissRequest = { isOpen = false }) {
+            Text(
+                StopOff.menuHeader(goingTo),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).widthIn(max = 280.dp),
+            )
+            HorizontalDivider()
             detours.forEach { offer ->
                 DropdownMenuItem(
-                    text = { Text(offer.title) },
+                    text = {
+                        Column {
+                            Text(offer.title)
+                            Text(offer.poi.title, style = MaterialTheme.typography.bodySmall)
+                        }
+                    },
                     onClick = {
                         isOpen = false
                         onPick(offer.poi)
@@ -423,10 +508,12 @@ private fun JourneyPlanSheet(
     val scope = rememberCoroutineScope()
     val plan by navigator.journey.collectAsStateWithLifecycle()
     val overview by navigator.overview.collectAsStateWithLifecycle()
+    val position by navigator.session.position.collectAsStateWithLifecycle()
     var proposal by remember { mutableStateOf<JourneyOrderProposal?>(null) }
+    var isMeasuring by remember { mutableStateOf(true) }
     var showsWholePlan by remember { mutableStateOf(false) }
     var isAdding by remember { mutableStateOf(false) }
-    /** What the last "+" could not add. Replaced by the next one. */
+    /** What the last "+" could not add, or that a reorder was applied. Replaced by the next one. */
     var note by remember { mutableStateOf<String?>(null) }
 
     val reorderable = navigator.reorderableStops
@@ -436,10 +523,16 @@ private fun JourneyPlanSheet(
     // Without a position it returns `null`; `ACTIVE_STOP` then keeps the stop being
     // walked to first and orders the rest. `apply` refuses a proposal after the remaining
     // stops or their order change, or after the live stop changes, so the proposal is
-    // measured again on each of those changes.
-    LaunchedEffect(listOf(navigator.activeStop?.id.orEmpty()) + reorderable.map { it.id }) {
+    // measured again on each of those changes. The first position measures again too,
+    // from the visitor instead of the stop being walked to.
+    LaunchedEffect(
+        listOf(navigator.activeStop?.id.orEmpty(), if (position == null) "no fix" else "fix") +
+            reorderable.map { it.id },
+    ) {
+        isMeasuring = true
         proposal = navigator.proposeOrder(JourneyOrderOrigin.VISITOR)
             ?: navigator.proposeOrder(JourneyOrderOrigin.ACTIVE_STOP)
+        isMeasuring = false
     }
 
     Column(
@@ -459,19 +552,48 @@ private fun JourneyPlanSheet(
             TextButton(onClick = onDismiss) { Text("Done") }
         }
 
-        proposal?.takeIf { it.isImprovement && navigator.canApply(it) }?.let { offer ->
-            TextButton(onClick = {
-                scope.launch {
-                    // `false`: the plan changed after the proposal was measured, and
-                    // nothing was applied.
-                    navigator.apply(offer)
-                    proposal = null
-                }
-            }) { Text("Save ${offer.savedMeters.roundToInt()} m by reordering") }
-            Text(
-                "Measured from where you are. Nothing moves until you tap it.",
-                style = MaterialTheme.typography.bodySmall,
+        // The order row, shown whenever two or more stops can move, so the visitor sees
+        // either the saving or that the order is already the shortest. `OrderAdvice.of`
+        // holds the rule.
+        val advice =
+            OrderAdvice.of(
+                proposal,
+                movableStops = reorderable.size,
+                isMeasuring = isMeasuring,
+                canApply = proposal?.let(navigator::canApply) ?: false,
             )
+        if (advice != OrderAdvice.None) {
+            Text("Order", style = MaterialTheme.typography.labelLarge)
+            val offer = proposal
+            if (advice is OrderAdvice.Save && offer != null) {
+                TextButton(onClick = {
+                    scope.launch {
+                        // `false`: the plan changed after the proposal was measured, and
+                        // nothing was applied.
+                        if (navigator.apply(offer)) note = "Stops reordered: ${advice.meters} m less to walk."
+                    }
+                }) { Text(advice.text.orEmpty()) }
+                Text(
+                    "Measured from where you are. Nothing moves until you tap it.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        when (advice) {
+                            OrderAdvice.AlreadyShortest -> Icons.Outlined.Check
+                            OrderAdvice.Unmeasurable -> Icons.Outlined.WarningAmber
+                            else -> Icons.Outlined.Schedule
+                        },
+                        contentDescription = null,
+                    )
+                    Text(
+                        advice.text.orEmpty(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
         }
 
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }

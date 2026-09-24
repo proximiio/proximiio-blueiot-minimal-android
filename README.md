@@ -1,6 +1,6 @@
 # Proximi.io BlueIoT — minimal reference app (Android)
 
-A complete venue app in sixteen Kotlin files. It asks for the visitor's wristband
+A complete venue app in seventeen Kotlin files. It asks for the visitor's wristband
 number once, shows the venue map, searches the venue's places, routes to a picked
 place, states the next turn, posts a notification when the visitor enters or leaves one
 of the venue's geofences, and walks a planned sequence of places that can be added to,
@@ -109,7 +109,7 @@ The SDK and the map library are documented at
 
 ## Where things are
 
-Sixteen files in the iOS app's folder layout, all in one Kotlin package
+Seventeen files in the iOS app's folder layout, all in one Kotlin package
 (`io.proximi.blueiot.minimal`). The folders match the iOS app so the two can be read side by side.
 
 | File | What it owns |
@@ -126,14 +126,15 @@ Sixteen files in the iOS app's folder layout, all in one Kotlin package
 | `Venue/GeofenceNotifier.kt` | The notification text and posting it. On iOS this is in `Venue.swift` and `NotificationPrompt.swift` |
 | `UI/WristbandPrompt.kt` | The wristband field, and the map credits |
 | `UI/LocationPrompt.kt` | The location prompt, and the rule for when it is shown |
-| `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, and where a visit starts |
+| `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, **New route from here**, and where a visit starts |
 | `UI/PoiSearchSheet.kt` | The search list, single or multi-select |
 | `UI/GuidanceLine.kt` | The turn-by-turn sentence |
-| `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, detours, reordering, and the prompt shown when the visitor leaves the route |
+| `Venue/VisitRules.kt` | The rules behind the visit's text: when a new visit is ordered, the order row in the plan, the stop-off lines, and ending the navigator once |
+| `UI/JourneyBar.kt` | The visit: the stop in hand, the plan, adding, stop-offs, reordering, and the prompt shown when the visitor leaves the route |
 | `res/xml/diagnostics_paths.xml` | The one directory the support report is shared from |
 | `res/mipmap-anydpi-v26/ic_launcher.xml` | The app icon, a placeholder |
 
-Five more files belong to one build type each. They are outside the sixteen. A product
+Five more files belong to one build type each. They are outside the seventeen. A product
 can delete them together with the calls to `DebugPositionSource` in `MainActivity`,
 `Venue` and `VenueMapScreen`:
 
@@ -290,10 +291,19 @@ next manoeuvre, the distance left to it, and arrival.
 The instruction sentences are the app's, in `GuidanceLine.instruction`, because
 `RouteManoeuvre.Kind` carries no display strings.
 
-Being off route is reported, not acted on. `RouteGuidance.isOffRoute` latches after
-`offRouteFixes` consecutive positions beyond `offRouteMeters`, and clears on the first
-position back inside. `RouteFollowRules.VENUE_WALK` sets those to 3 and 12 m. The app adds
-no detector and no re-routing of its own.
+`RouteGuidance.isOffRoute` latches after `offRouteFixes` consecutive positions beyond
+`offRouteMeters`, and clears on the first position back inside.
+`RouteFollowRules.VENUE_WALK` sets those to 3 and 12 m. The session does not re-route.
+While `isOffRoute` is `true` the bar reads "You have left the route." and shows **New route
+from here**, which computes a new route to the same place from the visitor's position
+(`GuidanceLine.offersReroute`). The app adds no detector of its own. The instruction is one
+line; the app shows no step list.
+
+Ending a visit hands the guidance back to this bar. `JourneyNavigator.end()` sets
+`guidanceRules` to `null`; `JourneyBar` calls it once, through `VisitEnding`, and then
+`VenueMapScreen` sets `RouteFollowRules.VENUE_WALK` again. A second `end()` after that,
+when the bar leaves the screen, would switch single-route guidance off, with no instruction
+and no off-route line.
 
 ## Place notifications
 
@@ -328,8 +338,12 @@ nothing else.
 The list button next to the search opens the same search sheet in multi-select. The
 places tapped, in that order, become a `Journey`. Before the visit starts, `JourneyBar`
 calls `proposeOrder(JourneyOrderOrigin.VISITOR)` and applies the result when it is
-shorter. The first place can move. Without a position the call returns `null` and the tap
-order is kept. A restored visit that has already started is not reordered.
+shorter. The first place can move. The bar then says which happened for 8 seconds: "Stops
+put in the shortest order: N m less to walk." or "Your stops are already in the shortest
+order." Without a position the call returns `null`; the tap order is kept, the bar says the
+order is measured when the position arrives, and the first position runs the same call.
+`StartOrder` holds the rule: no order is applied once a stop is reached, done or skipped,
+or a stop-off is in the plan. A restored visit that has already started is not reordered.
 `JourneyNavigator` then owns every route computation in the walk: it draws and follows one
 leg at a time through the same session as the map.
 
@@ -352,14 +366,22 @@ The plan is changed on the bar and in **Your visit**, the list button on the bar
 | --- | --- |
 | **Back to my route** | On the deviation prompt. Calls `resumeJourney()`: a live detour ends (reached is recorded as visited, otherwise dropped), the leg to the stop the plan is on is drawn from the visitor's position, and the deviation clears |
 | **New route from here** | On the deviation prompt. Calls `replanFromHere()`: a live detour ends, the remaining stops are reordered from the visitor's position and the order is applied. The stop being walked to is not kept in place |
-| **Back to the plan** | On the bar during a detour. Calls `cancelDetour()` |
+| **Stop off** | On the bar. See below |
+| **Back to the plan** | On the bar during a stop-off. Calls `cancelDetour()`: the stop-off is dropped and the leg to the planned stop is drawn from the visitor's position |
 | **+** | Opens the same multi-select search. `JourneyNavigator.add` puts each pick after everything still to be walked and leaves the leg in hand alone. It returns `false` for a place the plan already holds, which the sheet reports. It is available after the last stop too: adding revives a finished visit and makes the new stop active |
 | **Drag** | Long-press a row and drag to reorder what is still ahead. The rows are `JourneyNavigator.reorderableStops`, the list `move(stopId, toIndex)` indexes into, so the app holds no second copy of which stops may move. Compose has no `.onMove`, so this gesture is the app's, in `JourneyBar.ReorderableStops` |
-| **Save N m by reordering** | `proposeOrder(JourneyOrderOrigin.VISITOR)` measures a shorter order from the visitor's position and returns a proposal. The stop being walked to can move. Without a position the sheet uses `proposeOrder(JourneyOrderOrigin.ACTIVE_STOP)`, which keeps the stop being walked to first. A tap applies the proposal. It is measured again when the remaining stops, their order or the live stop change, because `apply` refuses a proposal after any of those changes and returns `false`. The button is hidden while `canApply` is `false` |
+| **Save N m by reordering** | `proposeOrder(JourneyOrderOrigin.VISITOR)` measures a shorter order from the visitor's position and returns a proposal. The stop being walked to can move. Without a position the sheet uses `proposeOrder(JourneyOrderOrigin.ACTIVE_STOP)`, which keeps the stop being walked to first. A tap applies the proposal. It is measured again when the remaining stops, their order, the live stop or the first position change, because `apply` refuses a proposal after any of those changes and returns `false`. The **Order** row is shown whenever two or more stops can move: the button, "Your stops are already in the shortest order.", "Measuring the shortest order…" while measuring or while `canApply` is `false`, or "The order cannot be measured: a stop has no route." when `proposeOrder` returns `null`. `OrderAdvice.of` holds the rule |
 | **Show the whole plan on the map** | Sets `session.journeyOverlayStyle`, which draws the rest of the plan under the leg in hand. Off by default |
 
-"Stop off" is a detour. Which amenity kinds a venue has is read from the venue's own
-amenity tags (`VenuePoi.nearestByAmenity`) rather than from a list of categories in the
+**Stop off** is a short stop at the nearest place of one kind, such as toilets or a café,
+before the planned stop. The menu lists each kind with the nearest place of that kind,
+under "Go to the nearest one before *planned stop*. Your plan continues afterwards." A pick
+calls `detour(stop)`, which inserts the stop-off before the active stop and routes to it
+immediately. During the stop-off the bar reads "Stop off: *place*" and says what follows:
+on the way, **Back to the plan** cancels it; at the place, **Continue** records it and
+routes to the planned stop from the visitor's position. `StopOff` holds the text. The menu
+is hidden while no kind of place is named, and during a stop-off. Which amenity kinds a
+venue has is read from the venue's own amenity tags (`VenuePoi.nearestByAmenity`) rather than from a list of categories in the
 app. What each kind is called comes from the SDK's amenity store: `amenities()` when a
 visit starts, which downloads only while nothing is stored, then `amenity(id)`, a local
 row read. The app keeps no titles of its own, so an amenity renamed on the server is
@@ -542,7 +564,7 @@ visitor's wristband id.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Fifty-eight tests in thirteen classes. Each covers behaviour that fails without anything
+Sixty-nine tests in fourteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
@@ -555,17 +577,20 @@ on screen looking wrong. The screens are not tested; they hold no logic.
 | `GeofenceNotifierTests` | 5 | The notification title, body, log line and id. A privacy zone announced on a lock screen is what a privacy zone exists to prevent |
 | `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed` and the background settings of `Venue.configuration`. A flag left at its default stops position updates minutes after the screen locks |
 | `DiagnosticsTests` | 2 | No configured secret reaches the log verbatim, and the report is inside the directory the `FileProvider` exposes |
+| `VisitRulesTests` | 11 | `StartOrder`, `OrderAdvice`, `StopOff`, `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
 | `DeviationPromptTests` | 7 | `DeviationPrompt.after`: the events that open, close and keep the deviation prompt, and its sentences |
 | `SdkLogcatTests` | 2 | Each SDK log level maps to a logcat priority, and the tag names the category |
 | `JourneyPlaybackLaunchTests` | 5 | Debug builds only. The launch extras in each form `adb` sends them |
 | `JourneyPickerTests` | 6 | Debug builds only. Picker rows: playable and unplayable journeys, the `validationFailure()` reason, the summary, API order and journeys without an id; the loading, empty and error states; the number formats |
 | `JourneyPlaybackSessionTests` | 7 | Debug builds only. The playback controls' states: start, pause, resume, finish, a failed fetch and stop; the launch extras; the options' log line |
 
-`DeviationPromptTests`, `DiagnosticsTests.theLogNeverCarriesAConfiguredSecretVerbatim`,
+`VisitRulesTests` (except `endingAVisitOnceKeepsSingleRouteGuidance`, which has no iOS
+twin), `DeviationPromptTests`, `DiagnosticsTests.theLogNeverCarriesAConfiguredSecretVerbatim`,
 `JourneyPickerTests` and `JourneyPlaybackSessionTests` keep the iOS test names. The last
 three classes are in `src/testDebug`, because the code they test exists in debug builds
 only.
 
-JUnit 4, as the SDK uses. Robolectric only where `SharedPreferences` or the
-`FileProvider` is involved. The wristband spelling rule, the amenity query and the picker
+JUnit 4, as the SDK uses. Robolectric only where `SharedPreferences`, the `FileProvider`
+or a `ProximiioMapSession` is involved; `VisitRulesTests` gives its navigators a
+`JourneyRouting` over one corridor and runs them with `kotlinx-coroutines-test`. The wristband spelling rule, the amenity query and the picker
 rules are plain JVM tests with no Android in them.

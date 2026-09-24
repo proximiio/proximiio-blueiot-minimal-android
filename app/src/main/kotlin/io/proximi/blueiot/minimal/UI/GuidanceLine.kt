@@ -27,7 +27,7 @@ fun GuidanceLine(guidance: RouteGuidance?) {
     Text(
         text = GuidanceLine.sentence(guidance),
         style = MaterialTheme.typography.bodyMedium,
-        maxLines = 1,
+        maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )
 }
@@ -40,10 +40,10 @@ object GuidanceLine {
      * `distanceToManoeuvreMeters` is the remaining distance to the next manoeuvre.
      * `RouteManoeuvre.legMeters` is the planned length of the leg and does not change.
      *
-     * Being off route is reported, not acted on. `RouteGuidance.isOffRoute` latches
-     * after `RouteFollowRules.offRouteFixes` consecutive positions beyond
-     * `offRouteMeters` (3 and 12 m in `RouteFollowRules.VENUE_WALK`) and clears on the
-     * first position back inside, so this app adds no detector of its own.
+     * `RouteGuidance.isOffRoute` latches after `RouteFollowRules.offRouteFixes`
+     * consecutive positions beyond `offRouteMeters` (3 and 12 m in
+     * `RouteFollowRules.VENUE_WALK`) and clears on the first position back inside, so
+     * this app adds no detector of its own.
      */
     fun sentence(guidance: RouteGuidance): String {
         if (guidance.hasArrived) return "You have arrived."
@@ -51,6 +51,12 @@ object GuidanceLine {
         val metres = guidance.distanceToManoeuvreMeters.roundToInt()
         return "${instruction(guidance.manoeuvre?.kind)} · $metres m"
     }
+
+    /**
+     * Whether the single-route bar offers **New route from here**: off the route and not
+     * arrived. The session does not re-route; the visitor asks.
+     */
+    fun offersReroute(guidance: RouteGuidance?): Boolean = guidance != null && guidance.isOffRoute && !guidance.hasArrived
 
     /**
      * `RouteManoeuvre.Kind` carries no display strings, and neither does the SDK's

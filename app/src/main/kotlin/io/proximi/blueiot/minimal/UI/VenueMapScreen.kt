@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.ViewList
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -214,9 +215,11 @@ fun VenueMapScreen(
                 onEnd = {
                     journey = null
                     JourneyStore.save(null, store)
-                    // `JourneyNavigator.end()` clears the route, the journey overlay and
-                    // `guidanceRules`, which a journey owns while it runs. Setting the
-                    // rules again restores this screen's single-route behaviour.
+                    // `JourneyBar` has called `JourneyNavigator.end()` before this runs. It
+                    // clears the route, the journey overlay and `guidanceRules`, which a
+                    // journey owns while it runs. Setting the rules again restores this
+                    // screen's single-route guidance, and nothing ends the navigator after
+                    // this.
                     session.guidanceRules = RouteFollowRules.VENUE_WALK
                 },
             )
@@ -231,6 +234,13 @@ fun VenueMapScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     GuidanceLine(guidance)
+                    // Shown while the visitor is off the single route. The session reports
+                    // `isOffRoute` and leaves the drawn route as it is; a tap computes a new
+                    // route to the same place from the current position, as a new pick does.
+                    val rerouteTo = destination
+                    if (rerouteTo != null && GuidanceLine.offersReroute(guidance)) {
+                        Button(onClick = { scope.launch { route(rerouteTo) } }) { Text("New route from here") }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Search, contentDescription = null)
                         Column(

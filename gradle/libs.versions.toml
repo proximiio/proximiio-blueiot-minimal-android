@@ -41,6 +41,8 @@ composeBom = "2026.08.00"
 # --- test ------------------------------------------------------------------
 junit = "4.13.2"
 robolectric = "4.16"
+# The version the map library is built with; `runTest` in `VisitRulesTests`.
+coroutines = "1.11.0"
 
 [libraries]
 # --- proximi.io ------------------------------------------------------------
@@ -65,6 +67,7 @@ compose-material-icons-extended = { module = "androidx.compose.material:material
 # --- test ------------------------------------------------------------------
 junit = { module = "junit:junit", version.ref = "junit" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
