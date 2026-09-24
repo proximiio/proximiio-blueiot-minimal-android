@@ -29,6 +29,7 @@ import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayEndpoint
 import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayPositionProvider
 import io.proximi.sdk.detachPositionProvider
 import io.proximi.sdk.loadRouteNetwork
+import io.proximi.sdk.positioning.engine.CustomPositionProviding
 import io.proximi.sdk.recordDiagnosticsEvent
 import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
@@ -48,6 +49,10 @@ class Venue private constructor(
     /** The attached provider's name, so a second [follow] can detach it. */
     private var attachedProvider: String? = null
 
+    /** The followed wristband. [attachRelay] attaches the relay for it. */
+    var wristband: WristbandId? = null
+        private set
+
     /**
      * The scope for work that outlives the map screen, such as the place notifications.
      * Cancelled in [stop].
@@ -59,24 +64,29 @@ class Venue private constructor(
      *
      * Calling it again with a different id detaches the previous provider first, so
      * changing the wristband is a re-attach rather than an SDK restart.
+     */
+    suspend fun follow(wristband: WristbandId) {
+        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "wristband: ${wristband.canonical}")
+        this.wristband = wristband
+        detachProvider()
+        // Debug builds end a journey playback here, and play a journey instead of
+        // attaching the relay when launched with a `journeyPlayback` extra. Release
+        // builds never do. See `DebugPositionSource`.
+        if (DebugPositionSource.follow(this)) return
+        attachRelay()
+    }
+
+    /**
+     * Attaches the cloud relay for [wristband]. Does nothing without a wristband or with
+     * a relay host that does not parse.
      *
      * No `floorNoMap` is passed. An engine floor number is the Proximi.io floor level,
      * and the SDK syncs every floor with its level, so it derives the number-to-floor
      * table itself; a table supplied here switches that derivation off. A fix naming a
      * number the venue has no floor for is reported in the SDK log.
      */
-    suspend fun follow(wristband: WristbandId) {
-        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "wristband: ${wristband.canonical}")
-        attachedProvider?.let {
-            sdk.detachPositionProvider(it)
-            attachedProvider = null
-        }
-        // Debug builds launched with a `journeyPlayback` extra play a journey instead of
-        // attaching the relay. Release builds never do. See `DebugPositionSource`.
-        DebugPositionSource.attach(sdk)?.let { playback ->
-            attachedProvider = playback.getOrNull()
-            return
-        }
+    suspend fun attachRelay() {
+        val band = wristband ?: return
         val host = VenueConfiguration.relayHost ?: return
         val endpoint = BlueiotCloudRelayEndpoint.fromText(host) ?: return
 
@@ -84,7 +94,7 @@ class Venue private constructor(
             BlueiotCloudRelayConfiguration(
                 endpoint = endpoint,
                 token = VenueConfiguration.relayToken,
-                tagId = wristband.canonical,
+                tagId = band.canonical,
                 // Default `false`, which pauses the provider whenever the app is
                 // backgrounded, whatever the process itself is allowed to do.
                 runsInBackground = true,
@@ -93,9 +103,21 @@ class Venue private constructor(
                 engineGroundFloorNumber = VenueConfiguration.groundFloorNumber,
             )
 
-        val provider = BlueiotCloudRelayPositionProvider(configuration)
+        attach(BlueiotCloudRelayPositionProvider(configuration))
+    }
+
+    /** Attaches [provider] in place of the attached one. Detaching is by name. */
+    suspend fun attach(provider: CustomPositionProviding) {
+        detachProvider()
         attachedProvider = provider.name
         sdk.attachPositionProvider(provider)
+    }
+
+    /** Detaches the attached provider, if any. */
+    suspend fun detachProvider() {
+        val name = attachedProvider ?: return
+        sdk.detachPositionProvider(name)
+        attachedProvider = null
     }
 
     /**

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
@@ -189,6 +190,15 @@ fun VenueMapScreen(
                     }
                 }
             },
+        )
+
+        // Debug builds only: the journey picker and playback controls
+        // (`JourneyPickerSheet.kt`). Top-start is the one corner the map leaves free: the
+        // floor picker is trailing, and the bottom belongs to the search bar and
+        // `JourneyBar`. Release builds draw nothing here.
+        DebugPositionSource.Overlay(
+            venue = venue,
+            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 8.dp),
         )
 
         val visit = journey

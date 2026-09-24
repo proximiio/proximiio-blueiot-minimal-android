@@ -10,20 +10,16 @@
 //    journeyLoop <bool>     optional, start again after the last waypoint
 //
 //  The journey is fetched once with the application token. The positions are generated
-//  on the phone. This file is in the `debug` source set, so release builds do not
-//  contain it.
+//  on the phone. The journey picker (`JourneyPickerSheet.kt`) starts playback through the
+//  same `DebugPositionSource.playJourney` call. This file is in the `debug` source set,
+//  so release builds do not contain it.
 //
 package io.proximi.blueiot.minimal
 
 import android.content.Intent
-import io.proximi.sdk.Proximiio
-import io.proximi.sdk.ProximiioDiagnosticsEventKind
-import io.proximi.sdk.attachPositionProvider
-import io.proximi.sdk.fetchJourney
 import io.proximi.sdk.journey.JourneyPlaybackConfiguration
 import io.proximi.sdk.journey.JourneyPlaybackProvider
-import io.proximi.sdk.recordDiagnosticsEvent
-import kotlinx.coroutines.CancellationException
+import io.proximi.sdk.journey.ProximiioJourney
 
 object JourneyPlaybackLaunch {
     const val JOURNEY_EXTRA = "journeyPlayback"
@@ -33,8 +29,7 @@ object JourneyPlaybackLaunch {
     /** The playback the launch extras request. */
     data class Request(
         val journeyId: String,
-        val speed: Double,
-        val loops: Boolean,
+        val options: JourneyPlaybackOptions,
     )
 
     /**
@@ -60,7 +55,7 @@ object JourneyPlaybackLaunch {
                 is Number -> value.toDouble() != 0.0
                 else -> value.toString().trim().lowercase() !in setOf("false", "no", "0")
             }
-        return Request(journeyId = id, speed = speed, loops = loops)
+        return Request(journeyId = id, options = JourneyPlaybackOptions(speed = speed, loops = loops))
     }
 
     /** Reads the extras of the launch intent. */
@@ -71,42 +66,19 @@ object JourneyPlaybackLaunch {
         return request { key -> extras.get(key) }
     }
 
-    /**
-     * Fetches the journey and attaches its playback. Returns the provider name, or the
-     * failure when the journey cannot be fetched; the diagnostics log records the
-     * reason. The relay is not attached in either case.
-     */
-    suspend fun attach(
-        request: Request,
-        sdk: Proximiio,
-    ): Result<String> =
-        try {
-            val journey = sdk.fetchJourney(request.journeyId)
-            val provider =
-                JourneyPlaybackProvider(
-                    journey = journey,
-                    configuration =
-                        JourneyPlaybackConfiguration(
-                            speed = request.speed,
-                            loops = request.loops,
-                            // As for the relay: keep playing with the screen locked.
-                            runsInBackground = true,
-                        ),
-                )
-            val looping = if (request.loops) ", looping" else ""
-            Proximiio.recordDiagnosticsEvent(
-                ProximiioDiagnosticsEventKind.state,
-                "journey playback: ${journey.displayName}, ${provider.configuration.speed}x$looping",
-            )
-            sdk.attachPositionProvider(provider)
-            Result.success(provider.name)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            Proximiio.recordDiagnosticsEvent(
-                ProximiioDiagnosticsEventKind.state,
-                "journey playback failed: ${error.message ?: error}",
-            )
-            Result.failure(error)
-        }
+    /** The playback provider for [journey]. The launch extras and the picker both attach this provider. */
+    fun provider(
+        journey: ProximiioJourney,
+        options: JourneyPlaybackOptions,
+    ): JourneyPlaybackProvider =
+        JourneyPlaybackProvider(
+            journey = journey,
+            configuration =
+                JourneyPlaybackConfiguration(
+                    speed = options.speed,
+                    loops = options.loops,
+                    // As for the relay: keep playing with the screen locked.
+                    runsInBackground = true,
+                ),
+        )
 }

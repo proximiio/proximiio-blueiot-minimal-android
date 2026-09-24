@@ -28,29 +28,29 @@ class JourneyPlaybackLaunchTests {
     /** Speed 1 and no loop unless the extras say otherwise. */
     @Test
     fun theIdAloneUsesTheDefaults() {
-        assertEquals(JourneyPlaybackLaunch.Request(journeyId, speed = 1.0, loops = false), request(JOURNEY_EXTRA to journeyId))
+        assertEquals(JourneyPlaybackLaunch.Request(journeyId, JourneyPlaybackOptions()), request(JOURNEY_EXTRA to journeyId))
     }
 
     /** `--ef`, `--ei` and `--es` all carry the speed. */
     @Test
     fun theSpeedIsReadInEachForm() {
-        assertEquals(2.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to 2f)?.speed)
-        assertEquals(3.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to 3)?.speed)
-        assertEquals(0.5, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to "0.5")?.speed)
+        assertEquals(2.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to 2f)?.options?.speed)
+        assertEquals(3.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to 3)?.options?.speed)
+        assertEquals(0.5, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to "0.5")?.options?.speed)
     }
 
     @Test
     fun aSpeedThatIsNotANumberIsOne() {
-        assertEquals(1.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to "fast")?.speed)
+        assertEquals(1.0, request(JOURNEY_EXTRA to journeyId, SPEED_EXTRA to "fast")?.options?.speed)
     }
 
     /** `--ez journeyLoop true` loops; `false`, `no` and `0` in any form do not. */
     @Test
     fun theLoopFlagIsReadInEachForm() {
-        assertTrue(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to true)?.loops == true)
-        assertTrue(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to "yes")?.loops == true)
-        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to false)?.loops == true)
-        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to "No")?.loops == true)
-        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to 0)?.loops == true)
+        assertTrue(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to true)?.options?.loops == true)
+        assertTrue(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to "yes")?.options?.loops == true)
+        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to false)?.options?.loops == true)
+        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to "No")?.options?.loops == true)
+        assertFalse(request(JOURNEY_EXTRA to journeyId, LOOP_EXTRA to 0)?.options?.loops == true)
     }
 }
