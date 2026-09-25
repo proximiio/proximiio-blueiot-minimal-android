@@ -80,8 +80,8 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.13` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.13` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.14` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.14` |
 | `io.proximi.map:proximiio-map` | `6.0.0-beta.12` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
@@ -215,7 +215,7 @@ hidden. Background location is never requested.
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
 iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
-manifest. At SDK `6.0.0-beta.13` and map `6.0.0-beta.12` the merged manifest holds:
+manifest. At SDK `6.0.0-beta.14` and map `6.0.0-beta.12` the merged manifest holds:
 
 | Permission | Declared by | Requested at runtime |
 | --- | --- | --- |
