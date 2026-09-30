@@ -28,9 +28,10 @@ object VenueConfiguration {
     /**
      * The engine floor number for the venue's ground floor, from
      * `BLUEIOT_GROUND_FLOOR_NO`. Not a credential and not required: empty means 0, which
-     * is an engine numbering floors the way Proximi.io does. See [Venue.attachRelay].
+     * is an engine numbering floors the way Proximi.io does. May be negative: this
+     * venue's engine reports the ground floor as -1. See [Venue.attachRelay].
      */
-    val groundFloorNumber: Int = value(BuildConfig.BLUEIOT_GROUND_FLOOR_NO)?.toIntOrNull() ?: 0
+    val groundFloorNumber: Int = groundFloorNumber(BuildConfig.BLUEIOT_GROUND_FLOOR_NO)
 
     /** The two credentials, passed to the diagnostics recorder for redaction. */
     val secrets: List<String> get() = listOfNotNull(token, relayToken)
@@ -56,6 +57,12 @@ object VenueConfiguration {
      * and reports the missing key instead of crashing.
      */
     class SetupIncomplete : Exception(missing ?: "Configuration is incomplete.")
+
+    /**
+     * `BLUEIOT_GROUND_FLOOR_NO` as an integer, sign included. Empty or not a whole
+     * number means 0.
+     */
+    internal fun groundFloorNumber(text: String): Int = value(text)?.toIntOrNull() ?: 0
 
     /** A BuildConfig string, or `null` when the properties file left it empty. */
     private fun value(text: String): String? = text.trim().ifEmpty { null }

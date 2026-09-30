@@ -80,9 +80,9 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.16` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.16` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.12` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.17` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.17` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.13` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
@@ -183,11 +183,15 @@ One integer remains, in the tracked `venue.properties`, because the SDK cannot d
 
 | Key | What it is |
 | --- | --- |
-| `BLUEIOT_GROUND_FLOOR_NO` | The engine floor number for the ground floor. Proximi.io calls it level `0`; BlueIoT LocalSense venues are usually numbered from `1`, and this one is. Empty means `0`, and then the key is not needed |
+| `BLUEIOT_GROUND_FLOOR_NO` | The engine floor number for the ground floor. Proximi.io calls it level `0`. This venue's LocalSense engine numbers floors −1, 1, 2, 3, 4 with no 0, and engine floor −1 is the ground floor, so the value is `-1`. For an engine that numbers the ground floor 1, the value is `1`. Empty means `0`, and then the key is not needed |
 
 It reaches the SDK as `BlueiotCloudRelayConfiguration.engineGroundFloorNumber` in
-`Venue.attachRelay`. The shift applies to floors above ground only: at `1`, engine floor 1 is
-level 0 and engine floor 2 is level 1, while engine floor −1 stays level −1.
+`Venue.attachRelay`. At `-1` the SDK shifts the ground floor and the floors below it:
+engine floor −1 is level 0 and engine floor −2 is level −1, while engine floor 1 stays
+level 1. Engine floor 0 matches no floor and is reported in the SDK log. At `1` the shift
+applies to the ground floor and the floors above it: engine floor 1 is level 0 and engine
+floor 2 is level 1, while engine floor −1 stays level −1. A negative value requires SDK
+`6.0.0-beta.17` or later.
 
 ## Positioning while the app is backgrounded
 
@@ -215,7 +219,7 @@ hidden. Background location is never requested.
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
 iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
-manifest. At SDK `6.0.0-beta.16` and map `6.0.0-beta.12` the merged manifest holds:
+manifest. At SDK `6.0.0-beta.17` and map `6.0.0-beta.13` the merged manifest holds:
 
 | Permission | Declared by | Requested at runtime |
 | --- | --- | --- |
@@ -532,7 +536,7 @@ Prerequisites:
 node scripts/journey-run.mjs login --token-file ~/.liveview-token
 node scripts/journey-run.mjs list --token-file ~/.liveview-token
 node scripts/journey-run.mjs start <journey_id> --token-file ~/.liveview-token \
-  --relay sandbox --ground-floor 1 --loop
+  --relay sandbox --ground-floor -1 --loop
 node scripts/journey-run.mjs status --token-file ~/.liveview-token
 node scripts/journey-run.mjs stop <run_id> --token-file ~/.liveview-token
 ```
@@ -546,8 +550,8 @@ node scripts/journey-run.mjs stop <run_id> --token-file ~/.liveview-token
 | `stop` | Stops a run. `pause` and `resume` take a run id the same way |
 
 The API accepts only a user token; an application token is refused with HTTP 403.
-`--ground-floor` must equal `BLUEIOT_GROUND_FLOOR_NO` in `venue.properties`, `1`; that is
-the default.
+`--ground-floor` must equal `BLUEIOT_GROUND_FLOOR_NO` in `venue.properties`, `-1`; that
+is the default.
 
 **Wristband id.** Enter the walker's wristband id in the app's wristband prompt.
 LiveView's **Connect your app** card shows it for each walker; `start` and `status` print

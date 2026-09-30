@@ -99,7 +99,11 @@ class Venue private constructor(
                 // backgrounded, whatever the process itself is allowed to do.
                 runsInBackground = true,
                 // The only floor value the SDK cannot derive: this venue's LocalSense
-                // engine numbers the ground floor 1 where Proximi.io uses level 0.
+                // engine numbers floors -1, 1, 2, 3, 4 with no 0, and engine -1 is the
+                // ground floor, which Proximi.io numbers level 0. At -1 the SDK shifts
+                // the ground floor and the floors below it: engine -1 is level 0,
+                // engine -2 is level -1, engine 1 stays level 1. Engine 0 matches no
+                // floor and is logged.
                 engineGroundFloorNumber = VenueConfiguration.groundFloorNumber,
             )
 
