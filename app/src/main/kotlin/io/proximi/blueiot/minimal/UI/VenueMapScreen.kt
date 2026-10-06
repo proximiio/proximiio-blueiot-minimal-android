@@ -53,7 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.proximi.map.compose.ProximiioMap
 import io.proximi.map.core.Journey
+import io.proximi.map.core.MapColor
 import io.proximi.map.core.RouteFollowRules
+import io.proximi.map.core.RouteLineStyle
 import io.proximi.map.kit.MapCameraFollow
 import io.proximi.map.kit.MapCanvasChrome
 import io.proximi.map.live.MapOptions
@@ -97,6 +99,16 @@ fun VenueMapScreen(
                         // An app that hides the control must show the style's credits
                         // itself; the long-press sheet lists them.
                         chrome = MapCanvasChrome.BARE,
+                        // The route ahead runs from blue at the visitor to red at the
+                        // destination. It replaces the route line of the venue style.
+                        routeLineStyle =
+                            RouteLineStyle(
+                                remaining =
+                                    RouteLineStyle.Paint.Gradient(
+                                        from = MapColor.hex(0x3F69FF),
+                                        to = MapColor.hex(0xED3731),
+                                    ),
+                            ),
                     ),
             )
         }
