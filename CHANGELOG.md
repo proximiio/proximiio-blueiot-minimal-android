@@ -5,6 +5,10 @@ All notable changes to this app are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The wristband binding file `io.proximi.sdk.blueiot.binding.xml` is excluded from cloud backup and device transfer, like the SDK token file. A restored copy could not be decrypted on the new phone.
+
 ### Added
 
 - **Smooth position** switch in the long-press sheet on the map, in debug and release

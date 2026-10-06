@@ -7,5 +7,6 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="BlueiotMinimal.xml" />
     <exclude domain="sharedpref" path="io.proximi.sdk.xml" />
+        <exclude domain="sharedpref" path="io.proximi.sdk.blueiot.binding.xml" />
     <exclude domain="file" path="proximiio-diagnostics/" />
 </full-backup-content>
