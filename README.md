@@ -1,6 +1,6 @@
 # Proximi.io BlueIoT — minimal reference app (Android)
 
-A complete venue app in twenty Kotlin files. It binds the phone to the visitor's
+A complete venue app in twenty-one Kotlin files. It binds the phone to the visitor's
 wristband, shows the venue map, searches the venue's places, routes to a picked
 place, states the next turn, posts a notification when the visitor enters or leaves one
 of the venue's geofences, and walks a planned sequence of places that can be added to,
@@ -15,7 +15,7 @@ This is the Android twin of
 [`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios).
 The deliberate divergences are listed under **The wristband binding**, **Choosing a
 place**, **Place notifications**, **Positioning while the app is backgrounded**, **The
-diagnostics log** and **Testing without the venue**. The largest one is the support report: the iOS app
+diagnostics log**, **Testing without the venue** and **Smooth position**. The largest one is the support report: the iOS app
 has no export.
 
 ## What it is not
@@ -124,7 +124,7 @@ The SDK and the map library are documented at
 
 ## Where things are
 
-Twenty files in the iOS app's folder layout, all in one Kotlin package
+Twenty-one files in the iOS app's folder layout, all in one Kotlin package
 (`io.proximi.blueiot.minimal`). The folders match the iOS app so the two can be read side by side.
 
 | File | What it owns |
@@ -134,6 +134,7 @@ Twenty files in the iOS app's folder layout, all in one Kotlin package
 | `App/VenueConfiguration.kt` | The build-time values and the `BlueiotBindingConfiguration` built from them |
 | `App/SdkLogcat.kt` | Forwarding the SDK's log to logcat in debug builds. No iOS twin |
 | `App/SupportReport.kt` | Building the support report and sharing it. No iOS twin |
+| `App/PositionSmoothingSetting.kt` | The stored **Smooth position** value, and the map smoothing it selects |
 | `Venue/WristbandSession.kt` | The wristband session: `restore()`, the binding state, the location ask before a bind, `bind(tagID)` and `end()` |
 | `Venue/WristbandId.kt` | The typed label, and the app's preferences file. No iOS twin |
 | `Venue/Venue.kt` | Starting the SDK, and attaching and detaching the position provider: the binding's provider, or a journey playback in debug builds |
@@ -144,7 +145,7 @@ Twenty files in the iOS app's folder layout, all in one Kotlin package
 | `UI/WristbandStatus.kt` | The session state on the map, and **End visit** |
 | `UI/WristbandCopy.kt` | The text per bind error, per end reason and per session state |
 | `UI/LocationPrompt.kt` | The location prompt, and the rule for when it is shown |
-| `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, **New route from here**, and where a visit starts |
+| `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, **New route from here**, where a visit starts, and the **Smooth position** switch |
 | `UI/PoiSearchSheet.kt` | The search list, single or multi-select |
 | `UI/GuidanceLine.kt` | The turn-by-turn sentence |
 | `Venue/VisitRules.kt` | The rules behind the visit's text: when a new visit is ordered, the order row in the plan, the stop-off lines, and ending the navigator once |
@@ -255,6 +256,25 @@ diagnostics log**). `MapOptions.chrome = MapCanvasChrome.BARE` in
 the style's credits somewhere reachable from the map. The credits are
 `ProximiioMapSession.attributions`, which for the venue style are OpenStreetMap (ODbL) and
 MapLibre. MapLibre strips the leading `©` from each credit; the app adds it back.
+
+## Smooth position
+
+The long-press sheet has a **Map** section with one switch, **Smooth position**, in debug
+and release builds. It is on by default, and the map smooths the dot
+(`PositionSmoothing.ADAPTIVE`). Off draws the dot exactly on each position from the
+venue (`PositionStyle.smoothing = PositionSmoothing.NONE`), for comparison with the
+venue's RTLS viewer. The dot then jumps between positions, so leave the switch on for
+visitors.
+
+The value is stored in the app's preferences file under `smoothPosition`. The map session
+is created with the stored value, and a change is applied by assigning
+`ProximiioMapSession.options`. The switch changes the map only: the SDK passes the
+positions from the wristband binding to `positions()` with their coordinates unchanged,
+and the app does not call `enableRouteSnapping()`.
+
+Divergence from iOS: the iOS switch is in the system Settings app and applies when the
+app returns to the foreground. Android has no Settings page for an app's own values, so
+the switch is in the app and applies at once.
 
 ## Positioning while the app is backgrounded
 

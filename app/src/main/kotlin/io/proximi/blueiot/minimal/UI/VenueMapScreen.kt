@@ -36,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.proximi.map.compose.ProximiioMap
 import io.proximi.map.core.Journey
 import io.proximi.map.core.MapColor
+import io.proximi.map.core.PositionStyle
 import io.proximi.map.core.RouteFollowRules
 import io.proximi.map.core.RouteLineStyle
 import io.proximi.map.kit.MapCameraFollow
@@ -109,6 +111,9 @@ fun VenueMapScreen(
                                         to = MapColor.hex(0xED3731),
                                     ),
                             ),
+                        // The "Smooth position" switch in the long-press sheet
+                        // (`PositionSmoothingSetting.kt`). Off draws the dot exactly on each fix.
+                        position = PositionStyle.VENUE.copy(smoothing = PositionSmoothingSetting.smoothing(store)),
                     ),
             )
         }
@@ -126,6 +131,7 @@ fun VenueMapScreen(
     // Held as the state object rather than its value: the long-press listener below is
     // registered once and would otherwise capture the first `false` permanently.
     val isChangingWristband = remember { mutableStateOf(false) }
+    var smoothsPosition by remember { mutableStateOf(PositionSmoothingSetting.isOn(store)) }
 
     val guidance by session.guidance.collectAsStateWithLifecycle()
     val position by session.position.collectAsStateWithLifecycle()
@@ -338,6 +344,17 @@ fun VenueMapScreen(
                 // The one place in a running app that reaches the support report.
                 footer = {
                     HorizontalDivider()
+                    SmoothPositionSwitch(isOn = smoothsPosition) { isOn ->
+                        smoothsPosition = isOn
+                        PositionSmoothingSetting.save(isOn, store)
+                        // Assigning the options applies the change to the running map.
+                        val options = session.options
+                        session.options =
+                            options.copy(
+                                position = options.position.copy(smoothing = PositionSmoothingSetting.smoothing(isOn)),
+                            )
+                    }
+                    HorizontalDivider()
                     SupportReportButton(sdk = venue.sdk)
                 },
                 onSave = {
@@ -346,6 +363,28 @@ fun VenueMapScreen(
                 },
             )
         }
+    }
+}
+
+/**
+ * The "Map" section of the long-press sheet: the **Smooth position** switch
+ * (`PositionSmoothingSetting`).
+ */
+@Composable
+private fun SmoothPositionSwitch(
+    isOn: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Map", style = MaterialTheme.typography.labelLarge)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Smooth position", modifier = Modifier.weight(1f))
+            Switch(checked = isOn, onCheckedChange = onChange)
+        }
+        Text(
+            "Off draws your position exactly on each update from the venue, without smoothing. For testing.",
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

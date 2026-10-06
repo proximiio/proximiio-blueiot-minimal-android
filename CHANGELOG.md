@@ -5,6 +5,12 @@ All notable changes to this app are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Smooth position** switch in the long-press sheet on the map, in debug and release
+  builds. Off draws the position exactly on each update from the venue, without
+  smoothing, for testing. The change applies to the map at once. On is the default.
+
 ### Changed
 
 - The app positions through the SDK's wristband binding (`BlueiotWristbandBinding`,
