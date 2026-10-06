@@ -2,8 +2,8 @@
 //  JourneyPlaybackLaunch.kt
 //  BlueiotMinimal
 //
-//  Debug builds only. Plays a journey stored on Proximi.io in place of the cloud relay,
-//  for testing the app away from the venue. Intent extras on the launch:
+//  Debug builds only. Plays a journey stored on Proximi.io in place of the wristband's
+//  positions, for testing the app away from the venue. Intent extras on the launch:
 //
 //    journeyPlayback <id>   the journey, `<organisation uuid>:<uuid>`
 //    journeySpeed <x>       optional, 0.5 to 10, default 1
@@ -77,7 +77,7 @@ object JourneyPlaybackLaunch {
                 JourneyPlaybackConfiguration(
                     speed = options.speed,
                     loops = options.loops,
-                    // As for the relay: keep playing with the screen locked.
+                    // As for the wristband binding: keep playing with the screen locked.
                     runsInBackground = true,
                 ),
         )

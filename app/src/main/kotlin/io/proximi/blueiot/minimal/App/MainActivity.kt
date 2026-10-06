@@ -3,7 +3,8 @@
 //  BlueiotMinimal
 //
 //  The single Activity. It shows, in order, the wristband prompt, the location prompt
-//  and the venue map. Product screens replace or sit beside `VenueMapScreen`.
+//  and the venue map, with the wristband session's state on top of the map. Product
+//  screens replace or sit beside `VenueMapScreen`.
 //
 package io.proximi.blueiot.minimal
 
@@ -11,9 +12,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,11 +33,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import io.proximi.sdk.Proximiio
 import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.recordDiagnosticsEvent
 import io.proximi.sdk.refreshPermissions
+import kotlinx.coroutines.CancellationException
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,37 +71,40 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Shows the wristband prompt and then the location prompt on first run. Later runs go
- * straight to the map.
+ * Shows the wristband prompt while no session is active, then the location prompt on
+ * first run, then the map. A returning visitor with an active session opens the map
+ * directly.
  */
 @Composable
 fun RootScreen() {
     val context = LocalContext.current
     val store = remember(context) { WristbandStore.preferences(context) }
 
-    var wristband by remember { mutableStateOf(WristbandStore.load(store)) }
+    // The binding state decides whether the wristband prompt is shown; the app stores no
+    // wristband id of its own. The first access creates the session, which runs
+    // `restore()`.
+    val session = remember(context) { BlueiotMinimalApplication.wristband(context) }
+    val state by session.state.collectAsStateWithLifecycle()
+    val isFollowing by session.isFollowing.collectAsStateWithLifecycle()
+
     // Android reports no "not determined" state for a runtime permission, so the app
     // keeps its own flag. It is `true` until `LocationPrompt` has been answered once.
     var owesLocationAsk by remember { mutableStateOf(LocationPrompt.isOwed(LocationPrompt.hasBeenAsked(store))) }
     var venue by remember { mutableStateOf<Venue?>(null) }
     var failure by remember { mutableStateOf<String?>(null) }
 
-    // Keyed on the wristband: a new id re-runs this and `follow()` re-attaches the relay
-    // provider without restarting the SDK. The key is `null` while the location prompt is
-    // on screen, so the SDK and its foreground service start only after it is answered.
-    LaunchedEffect(if (owesLocationAsk) null else wristband) {
-        val band = wristband ?: return@LaunchedEffect
-        if (owesLocationAsk) return@LaunchedEffect
+    // The SDK starts once, when a session is active and `LocationPrompt` is answered, so
+    // the SDK and its foreground service start only after that screen. The SDK keeps
+    // running when the session ends; the binding's provider then delivers nothing.
+    LaunchedEffect(isFollowing && !owesLocationAsk) {
+        if (!isFollowing || owesLocationAsk || venue != null) return@LaunchedEffect
         try {
-            val running = venue
-            if (running != null) {
-                running.follow(band)
-                return@LaunchedEffect
-            }
             val token = VenueConfiguration.token ?: throw VenueConfiguration.SetupIncomplete()
-            val started = Venue.start(context, token)
-            started.follow(band)
-            venue = started
+            val binding = session.binding ?: throw VenueConfiguration.SetupIncomplete()
+            venue = Venue.start(context, token, binding)
+            failure = null
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             failure = error.message ?: error.toString()
         }
@@ -112,11 +120,7 @@ fun RootScreen() {
 
     val started = venue
     when {
-        wristband == null ->
-            WristbandPrompt(onSave = {
-                WristbandStore.save(it, store)
-                wristband = it
-            })
+        !isFollowing -> WristbandPrompt(notice = WristbandCopy.endNotice(state))
 
         owesLocationAsk ->
             LocationPrompt(onAnswered = {
@@ -125,14 +129,15 @@ fun RootScreen() {
             })
 
         started != null ->
-            VenueMapScreen(
-                venue = started,
-                wristband = wristband?.canonical.orEmpty(),
-                onSaveWristband = {
-                    WristbandStore.save(it, store)
-                    wristband = it
-                },
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                // The sheet behind the map's long press binds through the same session,
+                // so nothing is left to do when it reports a new band.
+                VenueMapScreen(venue = started, wristband = session.lastLabel, onSaveWristband = {})
+                WristbandStatus(
+                    session = session,
+                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 8.dp),
+                )
+            }
 
         failure != null -> CannotReachTheVenue(failure.orEmpty())
 

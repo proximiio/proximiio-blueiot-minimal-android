@@ -3,7 +3,7 @@
 //  BlueiotMinimal
 //
 //  Requests `ACCESS_COARSE_LOCATION`, and `POST_NOTIFICATIONS` on API 33 and above.
-//  Shown once, between the wristband prompt and the map.
+//  Shown once, after the first wristband session starts and before the map.
 //
 //  The location grant is not used for the position: the venue's anchors locate the
 //  wristband. It is required because Android freezes a backgrounded process within
@@ -85,7 +85,10 @@ object LocationPrompt {
         store.edit { putBoolean(KEY, true) }
     }
 
-    /** Exactly the runtime permissions this app's manifest declares. */
+    /**
+     * The runtime permissions this prompt requests. `WristbandPrompt` requests precise
+     * location separately, before a bind that needs it.
+     */
     fun permissions(): Array<String> =
         buildList {
             add(Manifest.permission.ACCESS_COARSE_LOCATION)

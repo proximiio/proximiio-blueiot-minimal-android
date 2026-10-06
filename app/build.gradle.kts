@@ -8,11 +8,13 @@ plugins {
 /**
  * The app's build-time configuration.
  *
- * Three credentials come from the git-ignored root `secrets.properties` (see
- * `secrets.example.properties`); one venue value comes from the tracked
- * `venue.properties` next to it. A Gradle property of the same name is the fallback,
- * which is what lets CI build with neither file on disk. An empty value means "not
- * configured"; the app still builds and reports it on screen rather than crashing.
+ * The credentials come from the git-ignored root `secrets.properties` (see
+ * `secrets.example.properties`). The tracked `venue.properties` next to it sets the
+ * default relay-api URL. A value is read from `secrets.properties` first, then from
+ * `venue.properties`, then from a Gradle property of the same name; an empty value
+ * counts as absent. That order lets CI build with neither file on disk. A value that
+ * is empty everywhere means "not configured"; the app still builds and reports it on
+ * screen rather than crashing.
  */
 val secrets: Properties = properties("secrets.properties")
 val venue: Properties = properties("venue.properties")
@@ -24,10 +26,11 @@ fun properties(name: String): Properties =
     }
 
 fun value(key: String): String =
-    (secrets.getProperty(key) ?: venue.getProperty(key) ?: providers.gradleProperty(key).orNull ?: "")
-        .trim()
-        .trim('"', '\'')
-        .trim()
+    sequenceOf(secrets.getProperty(key), venue.getProperty(key), providers.gradleProperty(key).orNull)
+        .filterNotNull()
+        .map { it.trim().trim('"', '\'').trim() }
+        .firstOrNull { it.isNotEmpty() }
+        .orEmpty()
 
 /** A Kotlin string literal for `buildConfigField`. */
 fun quoted(text: String): String =
@@ -46,11 +49,8 @@ android {
 
         // Read once by `VenueConfiguration`. None of them is editable at runtime.
         buildConfigField("String", "PROXIMIIO_APPLICATION_TOKEN", quoted(value("PROXIMIIO_APPLICATION_TOKEN")))
-        buildConfigField("String", "BLUEIOT_CLOUD_RELAY_URL", quoted(value("BLUEIOT_CLOUD_RELAY_URL")))
-        buildConfigField("String", "BLUEIOT_CLOUD_RELAY_TOKEN", quoted(value("BLUEIOT_CLOUD_RELAY_TOKEN")))
-        // The venue's survey value rather than a credential; see venue.properties, which
-        // is tracked and carries this venue's working value.
-        buildConfigField("String", "BLUEIOT_GROUND_FLOOR_NO", quoted(value("BLUEIOT_GROUND_FLOOR_NO")))
+        buildConfigField("String", "BLUEIOT_RELAY_URL", quoted(value("BLUEIOT_RELAY_URL")))
+        buildConfigField("String", "BLUEIOT_RELAY_APP_TOKEN", quoted(value("BLUEIOT_RELAY_APP_TOKEN")))
     }
 
     buildFeatures {
@@ -111,7 +111,7 @@ android {
 }
 
 dependencies {
-    // The SDK, the BlueIoT cloud-relay client it positions from, and the venue map.
+    // The SDK, the BlueIoT wristband binding client it positions from, and the venue map.
     implementation(libs.proximiio.sdk)
     implementation(libs.proximiio.sdk.blueiot)
     implementation(libs.proximiio.map)

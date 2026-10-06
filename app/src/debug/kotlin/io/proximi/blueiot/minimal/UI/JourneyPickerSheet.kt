@@ -4,10 +4,10 @@
 //
 //  Debug builds only. The journey picker and the playback controls, in the top-start
 //  corner of the map. The picker lists the organisation's journeys
-//  (`Proximiio.journeys()`) and plays one in place of the cloud relay; the controls pause,
-//  resume and stop it. Stop attaches the relay again. The rules are in
-//  `JourneyPlayback.kt`. This file is in the `debug` source set, so release builds do
-//  not contain it.
+//  (`Proximiio.journeys()`) and plays one in place of the wristband's positions; the
+//  controls pause, resume and stop it. Stop attaches the binding's provider again. The
+//  rules are in `JourneyPlayback.kt`. This file is in the `debug` source set, so release
+//  builds do not contain it.
 //
 package io.proximi.blueiot.minimal
 
@@ -284,7 +284,7 @@ private fun JourneyPlaybackOptionsView(
         }
         Button(onClick = { onPlay(options) }, modifier = Modifier.fillMaxWidth()) { Text("Play") }
         Text(
-            "Replaces the cloud relay until Stop. Stop attaches the relay again.",
+            "Replaces the wristband's positions until Stop.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

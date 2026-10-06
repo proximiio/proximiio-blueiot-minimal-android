@@ -2,10 +2,10 @@
 //  DebugPositionSource.kt
 //  BlueiotMinimal
 //
-//  Debug builds: a journey playback that replaces the cloud relay, started by the launch
-//  intent (`JourneyPlaybackLaunch`) or by the journey picker (`JourneyPickerSheet`).
-//  Release builds compile the file of the same name in `src/release`, which never
-//  replaces the relay and shows no picker.
+//  Debug builds: a journey playback that replaces the wristband's positions, started by
+//  the launch intent (`JourneyPlaybackLaunch`) or by the journey picker
+//  (`JourneyPickerSheet`). Release builds compile the file of the same name in
+//  `src/release`, which never replaces the binding's provider and shows no picker.
 //
 package io.proximi.blueiot.minimal
 
@@ -22,7 +22,7 @@ import kotlinx.coroutines.CancellationException
 object DebugPositionSource {
     private var request: JourneyPlaybackLaunch.Request? = null
 
-    /** The journey playback that replaces the relay, and its state for the map screen. */
+    /** The journey playback that replaces the binding's provider, and its state for the map screen. */
     val playback = JourneyPlaybackController()
 
     /** Keeps the playback the launch intent requests. Called by `MainActivity`. */
@@ -31,12 +31,11 @@ object DebugPositionSource {
     }
 
     /**
-     * Called by `Venue.follow` after the previous provider is detached. Ends a running
-     * playback, then plays the journey the launch intent requests. `true` when a journey
-     * replaces the relay, including one whose fetch failed.
+     * Called by `Venue.start` in place of attaching the binding's provider. Plays the
+     * journey the launch intent requests. `true` when a journey replaces the binding's
+     * provider, including one whose fetch failed.
      */
-    suspend fun follow(venue: Venue): Boolean {
-        playback.end()
+    suspend fun attachAtStart(venue: Venue): Boolean {
         val requested = request ?: return false
         playJourney(venue, requested.journeyId, requested.options)
         return true
@@ -66,7 +65,7 @@ object DebugPositionSource {
     }
 
     /**
-     * Plays [journey] in place of the attached provider, usually the relay. The journey
+     * Plays [journey] in place of the attached provider, usually the binding's. The journey
      * picker uses this call. [journey] must pass `validationFailure()`; the provider plays
      * what it is given.
      */
@@ -87,7 +86,7 @@ object DebugPositionSource {
         playback.attached(provider)
     }
 
-    /** Detaches the playback and attaches the relay for the followed wristband, as at launch. */
+    /** Detaches the playback and attaches the binding's provider again, as at launch. */
     suspend fun stopJourney(venue: Venue) {
         venue.detachProvider()
         playback.end()

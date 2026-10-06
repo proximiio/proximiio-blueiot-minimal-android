@@ -10,8 +10,6 @@
 //
 package io.proximi.blueiot.minimal
 
-import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayConfiguration
-import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayEndpoint
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -41,20 +39,12 @@ class BackgroundPositioningTests {
     }
 
     /**
-     * Without `runsInBackground` the SDK pauses the relay provider whenever the app is
+     * Without `runsInBackground` the SDK pauses the binding's provider whenever the app is
      * backgrounded, however healthy the foreground service is. The default is `false`.
      */
     @Test
-    fun theRelayConfigurationRunsInTheBackground() {
-        val endpoint = requireNotNull(BlueiotCloudRelayEndpoint.fromText("blueiot.proximi.fi"))
-        val configuration =
-            BlueiotCloudRelayConfiguration(
-                endpoint = endpoint,
-                tagId = "7001",
-                runsInBackground = true,
-            )
+    fun theBindingConfigurationRunsInTheBackground() {
+        val configuration = requireNotNull(VenueConfiguration.binding("https://relay-api-sandbox.proximi.fi", "a"))
         assertTrue(configuration.runsInBackground)
-        // And no floor table: passing one switches the SDK's own derivation off.
-        assertTrue(configuration.floorNoMap.isEmpty())
     }
 }

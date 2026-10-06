@@ -3,11 +3,12 @@
 //  BlueiotMinimal
 //
 //  The process entry point. It starts the SDK's diagnostics log before any Activity
-//  exists and does nothing else. The launch order is in `MainActivity`.
+//  exists and holds the wristband session. The launch order is in `MainActivity`.
 //
 package io.proximi.blueiot.minimal
 
 import android.app.Application
+import android.content.Context
 import androidx.core.app.NotificationManagerCompat
 import io.proximi.sdk.Proximiio
 import io.proximi.sdk.ProximiioDiagnosticsEventKind
@@ -21,8 +22,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class BlueiotMinimalApplication : Application() {
-    /** Lives as long as the process. It runs the one suspending call below. */
+    /** Lives as long as the process. It runs the suspending calls below. */
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * The wristband session, one per process. Created on first use, which is the first
+     * frame of `RootScreen`; creating it runs `restore()`.
+     */
+    val wristband: WristbandSession by lazy { WristbandSession(this, scope) }
 
     override fun onCreate() {
         super.onCreate()
@@ -48,6 +55,9 @@ class BlueiotMinimalApplication : Application() {
     }
 
     companion object {
+        /** The process's [WristbandSession]. */
+        fun wristband(context: Context): WristbandSession = (context.applicationContext as BlueiotMinimalApplication).wristband
+
         /** The recording options. Separate so a test can read them. */
         fun recordingOptions(): ProximiioDiagnosticsRecordingOptions =
             ProximiioDiagnosticsRecordingOptions(

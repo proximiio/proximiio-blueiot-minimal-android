@@ -2,35 +2,31 @@
 //  Venue.kt
 //  BlueiotMinimal
 //
-//  All of this app's positioning: it starts the SDK and attaches the BlueIoT cloud
-//  relay position provider for one wristband. The venue's anchors locate the wristband
-//  and report to the relay; the phone scans nothing.
+//  All of this app's positioning: it starts the SDK and attaches the position provider
+//  of the wristband binding (`WristbandSession`). The venue's anchors locate the
+//  wristband and report to the Proximi.io relay-api; the phone scans nothing.
 //  `ProximiioConfiguration.relayOnly(token, serviceOptions)` is the preset for that
 //  shape of app. It turns the SDK's iBeacon, Eddystone and UWB sources off, and native
 //  location with them.
 //
 //  Positioning while the app is backgrounded requires all four of: `serviceOptions` on
-//  the SDK configuration and `runsInBackground = true` on the relay configuration (both
-//  below), the foreground-service permissions (`AndroidManifest.xml`), and a location
-//  grant (`LocationPrompt`). Any one of them missing stops position updates within
-//  minutes of the screen locking. `serviceOptions` keeps the process alive;
-//  `runsInBackground` stops the SDK pausing the relay provider when the app
-//  backgrounds.
+//  the SDK configuration (below) and `runsInBackground = true` on the binding
+//  configuration (`VenueConfiguration.binding`), the foreground-service permissions
+//  (`AndroidManifest.xml`), and a location grant (`LocationPrompt`). Any one of them
+//  missing stops position updates within minutes of the screen locking.
+//  `serviceOptions` keeps the process alive; `runsInBackground` stops the SDK pausing
+//  the binding's provider when the app backgrounds.
 //
 package io.proximi.blueiot.minimal
 
 import android.content.Context
 import io.proximi.sdk.Proximiio
 import io.proximi.sdk.ProximiioConfiguration
-import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.attachPositionProvider
-import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayConfiguration
-import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayEndpoint
-import io.proximi.sdk.blueiot.cloudrelay.BlueiotCloudRelayPositionProvider
+import io.proximi.sdk.blueiot.binding.BlueiotWristbandBinding
 import io.proximi.sdk.detachPositionProvider
 import io.proximi.sdk.loadRouteNetwork
 import io.proximi.sdk.positioning.engine.CustomPositionProviding
-import io.proximi.sdk.recordDiagnosticsEvent
 import io.proximi.sdk.refreshPermissions
 import io.proximi.sdk.service.ProximiioServiceOptions
 import kotlinx.coroutines.CoroutineScope
@@ -45,13 +41,11 @@ class Venue private constructor(
      * venue, the floors and the live position from it.
      */
     val sdk: Proximiio,
+    /** The binding client whose provider delivers the wristband's positions. */
+    private val binding: BlueiotWristbandBinding,
 ) {
-    /** The attached provider's name, so a second [follow] can detach it. */
+    /** The attached provider's name, so [attach] and [detachProvider] can detach it. */
     private var attachedProvider: String? = null
-
-    /** The followed wristband. [attachRelay] attaches the relay for it. */
-    var wristband: WristbandId? = null
-        private set
 
     /**
      * The scope for work that outlives the map screen, such as the place notifications.
@@ -60,54 +54,15 @@ class Venue private constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /**
-     * Attaches the relay position provider for one wristband.
+     * Attaches the binding's position provider.
      *
-     * Calling it again with a different id detaches the previous provider first, so
-     * changing the wristband is a re-attach rather than an SDK restart.
-     */
-    suspend fun follow(wristband: WristbandId) {
-        Proximiio.recordDiagnosticsEvent(ProximiioDiagnosticsEventKind.state, "wristband: ${wristband.canonical}")
-        this.wristband = wristband
-        detachProvider()
-        // Debug builds end a journey playback here, and play a journey instead of
-        // attaching the relay when launched with a `journeyPlayback` extra. Release
-        // builds never do. See `DebugPositionSource`.
-        if (DebugPositionSource.follow(this)) return
-        attachRelay()
-    }
-
-    /**
-     * Attaches the cloud relay for [wristband]. Does nothing without a wristband or with
-     * a relay host that does not parse.
-     *
-     * No `floorNoMap` is passed. An engine floor number is the Proximi.io floor level,
-     * and the SDK syncs every floor with its level, so it derives the number-to-floor
-     * table itself; a table supplied here switches that derivation off. A fix naming a
-     * number the venue has no floor for is reported in the SDK log.
+     * The provider follows whichever session the binding holds, so a new bind, a
+     * take-over or an ended visit needs no re-attach. The relay-api sends Proximi.io
+     * floor levels, and the floor id when it knows it; the SDK resolves a level against
+     * the floors it synced. The app sets no floor mapping.
      */
     suspend fun attachRelay() {
-        val band = wristband ?: return
-        val host = VenueConfiguration.relayHost ?: return
-        val endpoint = BlueiotCloudRelayEndpoint.fromText(host) ?: return
-
-        val configuration =
-            BlueiotCloudRelayConfiguration(
-                endpoint = endpoint,
-                token = VenueConfiguration.relayToken,
-                tagId = band.canonical,
-                // Default `false`, which pauses the provider whenever the app is
-                // backgrounded, whatever the process itself is allowed to do.
-                runsInBackground = true,
-                // The only floor value the SDK cannot derive: this venue's LocalSense
-                // engine numbers floors -1, 1, 2, 3, 4 with no 0, and engine -1 is the
-                // ground floor, which Proximi.io numbers level 0. At -1 the SDK shifts
-                // the ground floor and the floors below it: engine -1 is level 0,
-                // engine -2 is level -1, engine 1 stays level 1. Engine 0 matches no
-                // floor and is logged.
-                engineGroundFloorNumber = VenueConfiguration.groundFloorNumber,
-            )
-
-        attach(BlueiotCloudRelayPositionProvider(configuration))
+        attach(binding.positionProvider)
     }
 
     /** Attaches [provider] in place of the attached one. Detaching is by name. */
@@ -172,8 +127,8 @@ class Venue private constructor(
             )
 
         /**
-         * Reads the permission grants, authenticates, starts positioning and downloads
-         * the venue.
+         * Reads the permission grants, authenticates, starts positioning, downloads the
+         * venue and attaches the binding's position provider.
          *
          * The four suspending calls run in this order, and none is optional:
          *  1. [refreshPermissions] reads the grants `LocationPrompt` obtained. It never
@@ -190,19 +145,23 @@ class Venue private constructor(
          *
          * The place notifications are attached between steps 3 and 4: the geofence
          * stream exists from `start()`, and a transition can arrive while the route
-         * network is still downloading.
+         * network is still downloading. The binding's provider is attached last, once.
          */
         suspend fun start(
             context: Context,
             token: String,
+            binding: BlueiotWristbandBinding,
         ): Venue {
             val sdk = Proximiio(context, configuration(token))
             sdk.refreshPermissions()
             sdk.authenticate()
             sdk.start()
-            val venue = Venue(sdk)
+            val venue = Venue(sdk, binding)
             venue.notifyOnPlaceChanges(context)
             sdk.loadRouteNetwork()
+            // Debug builds play a journey instead when launched with a `journeyPlayback`
+            // extra. Release builds never do. See `DebugPositionSource`.
+            if (!DebugPositionSource.attachAtStart(venue)) venue.attachRelay()
             return venue
         }
     }

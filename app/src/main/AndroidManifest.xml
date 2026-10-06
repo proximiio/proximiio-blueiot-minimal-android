@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- The venue is downloaded once; the relay is a WebSocket. -->
+    <!-- The venue is downloaded once; the relay-api streams the wristband's positions. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
@@ -27,12 +27,17 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!--
-      The one runtime permission this app requests (`LocationPrompt`). It is not used for
-      the position: the venue's anchors locate the wristband and nothing here reads a
-      coordinate off the phone. It is what lets the SDK hold the `location` service type
-      above. Coarse is enough.
+      Requested by `LocationPrompt`. It is not used for the position: the venue's anchors
+      locate the wristband. It is what lets the SDK hold the `location` service type
+      above. Coarse is enough for that.
     -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!--
+      Requested by `WristbandPrompt` before a bind, only when the relay-api needs the
+      phone's location to allow a take-over of a wristband another phone follows
+      (`locationReadiness()`). The SDK sends one fix with that bind and reads no other.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!--
       Requested with it on API 33 and above so the service's ongoing notification is
       visible. A refusal leaves the service running with the notification hidden.
@@ -53,11 +58,10 @@
     <!--
       This file declares no Bluetooth permission and the app requests none at runtime.
       The phone scans nothing: the venue's BlueIoT anchors locate the wristband and
-      report to the Proximi.io cloud relay, and `ProximiioConfiguration.relayOnly` turns
+      report to the Proximi.io relay-api, and `ProximiioConfiguration.relayOnly` turns
       the SDK's iBeacon, Eddystone and UWB sources off. The SDK's manifests still add
-      Bluetooth, fine location and activity recognition permissions to the merged
-      manifest (README, "Positioning while the app is backgrounded"). The app requests
-      none of them.
+      Bluetooth and activity recognition permissions to the merged manifest (README,
+      "Positioning while the app is backgrounded"). The app requests none of them.
     -->
 
     <application

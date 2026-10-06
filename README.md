@@ -1,7 +1,7 @@
 # Proximi.io BlueIoT — minimal reference app (Android)
 
-A complete venue app in seventeen Kotlin files. It asks for the visitor's wristband
-number once, shows the venue map, searches the venue's places, routes to a picked
+A complete venue app in twenty Kotlin files. It binds the phone to the visitor's
+wristband, shows the venue map, searches the venue's places, routes to a picked
 place, states the next turn, posts a notification when the visitor enters or leaves one
 of the venue's geofences, and walks a planned sequence of places that can be added to,
 reordered and detoured from. Positioning continues while the app is backgrounded. The
@@ -9,13 +9,13 @@ SDK's diagnostics log is recorded from process start and can be sent as a suppor
 report.
 
 The visitor is positioned by the venue's own BlueIoT anchors, through the Proximi.io
-cloud relay. The phone scans nothing.
+relay-api and the SDK's wristband binding client. The phone scans nothing.
 
 This is the Android twin of
 [`proximiio-blueiot-minimal-ios`](https://github.com/proximiio/proximiio-blueiot-minimal-ios).
-The deliberate divergences are listed under **Choosing a place**, **Place
-notifications**, **Positioning while the app is backgrounded**, **The diagnostics log**
-and **Testing without the venue**. The largest one is the support report: the iOS app
+The deliberate divergences are listed under **The wristband binding**, **Choosing a
+place**, **Place notifications**, **Positioning while the app is backgrounded**, **The
+diagnostics log** and **Testing without the venue**. The largest one is the support report: the iOS app
 has no export.
 
 ## What it is not
@@ -24,7 +24,8 @@ It has no settings screen, no diagnostics screen, no staff mode, no engine contr
 event log, no offline package and no step list. Nothing reorders a started visit without a
 tap. It
 uses no navigation library, no dependency injection and no `ViewModel`: `remember` and
-`rememberSaveable` hold every piece of state in the app.
+`rememberSaveable` hold the screens' state, and the `Application` holds the wristband
+session.
 
 Each of those exists in the SDK and is left out here on purpose: this app is a starting
 point for a product, not a tour of the SDK.
@@ -33,10 +34,10 @@ point for a product, not a tour of the SDK.
 
 The app draws one Proximi.io organisation and follows one BlueIoT wristband. Before it
 shows anything, the organisation must hold the venue's floors, places and geofences, and
-the venue's BlueIoT engine must report the wristband to the Proximi.io cloud relay.
-Proximi.io supplies the three values below.
+the wristband must be registered in the venue's relay-api. Proximi.io supplies the values
+below.
 
-Three build-time credentials, none editable at runtime:
+Three build-time values, none editable at runtime:
 
 ```sh
 cp secrets.example.properties secrets.properties
@@ -46,16 +47,27 @@ $EDITOR secrets.properties
 | Key | What it is |
 | --- | --- |
 | `PROXIMIIO_APPLICATION_TOKEN` | The Proximi.io application token (Proximi.io Portal → organisation → Application token) |
-| `BLUEIOT_CLOUD_RELAY_URL` | The Proximi.io cloud relay carrying this venue's wristband positions. A bare host is enough. The template sets the production relay, `blueiot.proximi.fi`; **Testing without the venue** describes the sandbox relay |
-| `BLUEIOT_CLOUD_RELAY_TOKEN` | That relay's stream token, sent as `Authorization: Bearer`. The relay answers HTTP 401 without it |
+| `BLUEIOT_RELAY_URL` | The relay-api base URL. Default in the tracked `venue.properties`: `https://relay-api-sandbox.proximi.fi`, the Proximi.io sandbox. For production, the venue's own relay-api URL. A bare host becomes `https://…` |
+| `BLUEIOT_RELAY_APP_TOKEN` | The app token of that relay-api install, sent as `Authorization: Bearer`. Each install has its own token; it comes from your Proximi.io contact |
 
 `secrets.properties` is gitignored and is the only place a real credential may live.
 `secrets.example.properties` is tracked, leaves the token keys empty and is the file to
-copy. The build reads `secrets.properties` when it exists and falls back to a Gradle
-property of the same name, so CI builds with neither on disk. With any key empty the app
-still builds and runs, and reports the missing key on screen.
+copy. The build reads a key from `secrets.properties` first, then from the tracked
+`venue.properties`, then from a Gradle property of the same name; an empty value counts
+as absent. CI builds with an empty `secrets.properties`.
 
-The one non-secret value lives in the tracked `venue.properties`; see **Floor numbers**.
+An empty key neither fails the build nor crashes the app. `VenueConfiguration.missing`
+names every empty key, and a URL that does not parse, in one sentence, which
+`WristbandPrompt` shows under the number field. Past that point the effects differ:
+
+| Empty key | Effect |
+| --- | --- |
+| `PROXIMIIO_APPLICATION_TOKEN` | `RootScreen` throws `VenueConfiguration.SetupIncomplete` before the SDK starts; the screen after the prompts shows "Cannot reach the venue" with the same sentence |
+| `BLUEIOT_RELAY_URL` or `BLUEIOT_RELAY_APP_TOKEN` | No binding client is created. **Connect** is disabled |
+
+A wrong app token fails each bind with `BlueiotBindingError.AppTokenRejected`. A URL
+that is not a relay-api install fails with `NotARelayAPI`. The prompt names the key to
+check.
 
 ## Run it
 
@@ -80,9 +92,9 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.17` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.17` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.13` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.18` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.18` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.14` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
@@ -90,18 +102,21 @@ MapLibre arrives transitively through `proximiio-map` and must not be declared h
 
 ## The first run
 
-1. The app asks for the wristband number printed on the band. The line under the field
-   echoes the tag it understood, in decimal and hexadecimal.
+1. The app asks for the wristband number printed on the band. **Connect** binds it. When
+   the relay-api needs the phone's location for the bind, Android's location dialog is
+   shown first; see **The wristband binding**.
 2. It explains why it needs location. **Continue** opens Android's permission dialog,
    and no other permission dialog follows, whatever the answer.
    **Positioning while the app is backgrounded** explains why a relay-fed app needs the
    grant.
-3. The map opens on the venue. The dot appears when the relay reports the wristband;
-   until then the map, the floor selector and the search work without it.
+3. The map opens on the venue, with the session's state at the top. The dot appears when
+   the relay-api reports the wristband; until then the map, the floor selector and the
+   search work without it.
 
-A key left empty in `secrets.properties` is named on screen instead of the map. No
-position and no map usually means the token is for another organisation, the relay
-address or token is wrong, or the venue's engine is not reporting that wristband.
+A key left empty in `secrets.properties` is named on the wristband prompt. A bind that
+fails shows its reason under the field. No position usually means the application token
+is for another organisation, or the venue does not hear the wristband (the status reads
+**Signal lost**).
 
 The SDK and the map library are documented at
 [docs.proximi.fi/android-sdk-v6](https://docs.proximi.fi/android-sdk-v6/) and
@@ -109,22 +124,25 @@ The SDK and the map library are documented at
 
 ## Where things are
 
-Seventeen files in the iOS app's folder layout, all in one Kotlin package
+Twenty files in the iOS app's folder layout, all in one Kotlin package
 (`io.proximi.blueiot.minimal`). The folders match the iOS app so the two can be read side by side.
 
 | File | What it owns |
 | --- | --- |
-| `App/BlueiotMinimalApplication.kt` | Starting the diagnostics log at process start. On iOS this is in `BlueiotMinimalApp.swift` |
-| `App/MainActivity.kt` | The start-up order: wristband, location, SDK, map |
-| `App/VenueConfiguration.kt` | The build-time values |
+| `App/BlueiotMinimalApplication.kt` | Starting the diagnostics log at process start, and holding the wristband session. On iOS this is in `BlueiotMinimalApp.swift` |
+| `App/MainActivity.kt` | The start-up order: wristband, location, SDK, map, and the session's state on the map |
+| `App/VenueConfiguration.kt` | The build-time values and the `BlueiotBindingConfiguration` built from them |
 | `App/SdkLogcat.kt` | Forwarding the SDK's log to logcat in debug builds. No iOS twin |
 | `App/SupportReport.kt` | Building the support report and sharing it. No iOS twin |
-| `Venue/WristbandId.kt` | The spelling rule for a wristband id, and where it is stored |
-| `Venue/Venue.kt` | Starting the SDK, and attaching and detaching the position provider: the cloud relay for one wristband, or a journey playback in debug builds |
+| `Venue/WristbandSession.kt` | The wristband session: `restore()`, the binding state, the location ask before a bind, `bind(tagID)` and `end()` |
+| `Venue/WristbandId.kt` | The typed label, and the app's preferences file. No iOS twin |
+| `Venue/Venue.kt` | Starting the SDK, and attaching and detaching the position provider: the binding's provider, or a journey playback in debug builds |
 | `Venue/VenuePoi.kt` | Turning the venue's features into searchable places |
 | `Venue/JourneyStore.kt` | Persisting a visit, and turning a picked place into a stop |
 | `Venue/GeofenceNotifier.kt` | The notification text and posting it. On iOS this is in `Venue.swift` and `NotificationPrompt.swift` |
-| `UI/WristbandPrompt.kt` | The wristband field, and the map credits |
+| `UI/WristbandPrompt.kt` | The wristband prompt, the location dialog before a bind, and the map credits |
+| `UI/WristbandStatus.kt` | The session state on the map, and **End visit** |
+| `UI/WristbandCopy.kt` | The text per bind error, per end reason and per session state |
 | `UI/LocationPrompt.kt` | The location prompt, and the rule for when it is shown |
 | `UI/VenueMapScreen.kt` | Map, search, tap-to-route, route, **New route from here**, and where a visit starts |
 | `UI/PoiSearchSheet.kt` | The search list, single or multi-select |
@@ -134,7 +152,7 @@ Seventeen files in the iOS app's folder layout, all in one Kotlin package
 | `res/xml/diagnostics_paths.xml` | The one directory the support report is shared from |
 | `res/mipmap-anydpi-v26/ic_launcher.xml` | The app icon, a placeholder |
 
-Five more files belong to one build type each. They are outside the seventeen. A product
+Five more files belong to one build type each. They are outside the twenty. A product
 can delete them together with the calls to `DebugPositionSource` in `MainActivity`,
 `Venue` and `VenueMapScreen`:
 
@@ -142,11 +160,11 @@ can delete them together with the calls to `DebugPositionSource` in `MainActivit
 | --- | --- |
 | `src/debug/…/Venue/JourneyPlaybackLaunch.kt` | Reading the launch extras, and the playback provider they and the picker attach |
 | `src/debug/…/Venue/JourneyPlayback.kt` | The journey picker's rows and list states, the playback options, and the playback controls' state |
-| `src/debug/…/Venue/DebugPositionSource.kt` | Playing and stopping a journey in place of the relay, for the launch extras and the picker |
+| `src/debug/…/Venue/DebugPositionSource.kt` | Playing and stopping a journey in place of the binding's provider, for the launch extras and the picker |
 | `src/debug/…/UI/JourneyPickerSheet.kt` | The journey picker button, the picker sheet and the playback controls |
-| `src/release/…/Venue/DebugPositionSource.kt` | The release build's switch, which always keeps the relay and shows no picker |
+| `src/release/…/Venue/DebugPositionSource.kt` | The release build's switch, which always keeps the binding's provider and shows no picker |
 
-`scripts/journey-run.mjs` is a Node script for tests through the sandbox relay; see
+`scripts/journey-run.mjs` is a Node script for tests through the sandbox relay-api; see
 **Testing without the venue**.
 
 The icon is a placeholder: an adaptive icon made of a flat colour
@@ -155,13 +173,81 @@ The icon is a placeholder: an adaptive icon made of a flat colour
 background colour, or point `ic_launcher.xml` at an existing icon. Nothing else in the
 project refers to the image.
 
-## Changing the wristband, and the map credits
+## The wristband binding
 
-A returning visitor is never asked for the wristband number again. To change it,
-long-press the map; the same prompt opens as a bottom sheet. There is deliberately no
+The app positions from the SDK's `BlueiotWristbandBinding` (`WristbandSession`). The
+binding client holds the session in Keystore-backed storage; the app stores no wristband
+id. The relay-api sends the phone only the bound band's positions.
+`BlueiotMinimalApplication.wristband` creates the session once per process, on the first
+frame of `RootScreen`.
+
+| Moment | Call | Effect |
+| --- | --- | --- |
+| Launch | `restore()` | Confirms a stored session with the relay-api. An active session opens the map; an ended one shows the prompt with its notice |
+| SDK start | `attachPositionProvider(binding.positionProvider)` | Once, in `Venue.start`. The provider follows whichever session the binding holds, so a bind or an end needs no re-attach |
+| **Connect** | `locationReadiness()`, then `bind(tagID)` | The label is sent as typed; the relay-api resolves every label format. The same call takes over a band another phone follows |
+| **End visit** | `end()` | The state becomes `Ended(UserEnded)` and the prompt is shown |
+
+`stateChanges()` drives the screens. `WristbandStatus` shows the state of an active
+session at the top of the map: **Connecting…**, **Online**, **Reconnecting…** or
+**Signal lost** (the venue no longer hears the band). When a session ends, `RootScreen`
+shows the prompt with one notice per `BlueiotBindingEndReason`. For `Superseded`, another
+phone took the band: "Your wristband was scanned by another phone." The field holds the
+last label, so **Connect** binds the same band again. The SDK keeps running while the
+prompt is shown.
+
+The SDK starts when a session is active and `LocationPrompt` is answered, not before:
+the `LaunchedEffect` key in `RootScreen` is `false` until then.
+
+**Location before a bind.** The relay-api decides whether a bind needs the phone's
+location (`/v1/meta`, `takeover_location_required`). The SDK never shows a location
+dialog. Before a bind, `WristbandPrompt` reads `locationReadiness()`:
+
+| Readiness | The app |
+| --- | --- |
+| `PERMISSION_NEEDED` | Requests `ACCESS_FINE_LOCATION` with `ACCESS_COARSE_LOCATION`. Android offers precise or approximate location in one dialog. After two refusals Android shows no dialog, and the bind is sent without a location |
+| `PRECISE_LOCATION_NEEDED` | Requests the same pair. Android offers to upgrade approximate location to precise |
+| `READY`, `NOT_REQUIRED` | Requests nothing |
+
+The line under the field states the dialog before **Connect** is tapped. The bind is
+sent in every case: a band at the reception desk binds without a location.
+
+**Errors.** `WristbandCopy.message` maps each `BlueiotBindingError` to one sentence,
+keyed on the case and never on the relay-api's English message:
+
+| Error | Text |
+| --- | --- |
+| `TagAlreadyBound` | This wristband is already in use. Please ask the staff. |
+| `NotInAuthorizedZone(REJECTED_BY_RELAY)` | To take over this wristband, be inside the museum with location enabled, or ask at the reception desk. |
+| `NotInAuthorizedZone` with another cause | One sentence per cause: no permission, approximate location, no fix in time, simulated location |
+| `TagNotAvailable` | This wristband is not active. Please ask the staff. |
+| `TagNotAtReception` | Connect this wristband at the reception desk. |
+| `TagNotIssued` | This wristband has not been issued yet. Please ask the staff. |
+| `RateLimited` | Too many attempts. Try again in N seconds. |
+| `AppTokenRejected`, `NotARelayAPI` | Names the configuration key to check |
+
+Divergences from the iOS app:
+
+- The location dialog before a bind requests `ACCESS_FINE_LOCATION`. iOS asks for *While
+  Using the App*, or for temporary full accuracy with a purpose key; Android has neither.
+  The approximate-location message names Android's setting, **Use precise location**.
+- The session's state on the map is drawn by `RootScreen` over `VenueMapScreen`, not
+  inside it.
+- `WristbandId.kt` holds the typed label and the app's preferences file
+  (`WristbandStore.preferences`), which also holds the visit and the location prompt's
+  flag. iOS has no such file.
+
+**Floor numbers.** The relay-api sends Proximi.io floor levels, mapped from the venue
+engine's numbering on the relay side, and the floor id when it knows it. The SDK resolves
+a level against the floors it synced. The app sets no floor mapping.
+
+## Connecting another wristband, and the map credits
+
+Long-press the map and the same prompt opens as a bottom sheet. There is deliberately no
 visible control. `VenueMapScreen.isChangingWristband` is the single flag that opens it.
 The gesture is MapLibre's `addOnMapLongClickListener`, registered inside the `configure`
-lambda's `onStyleLoaded`, so pan, pinch and rotate are unaffected.
+lambda's `onStyleLoaded`, so pan, pinch and rotate are unaffected. A successful bind
+replaces the current session and closes the sheet; the map and the SDK keep running.
 
 The same sheet lists the map credits and holds **Send diagnostics report** (see **The
 diagnostics log**). `MapOptions.chrome = MapCanvasChrome.BARE` in
@@ -169,29 +255,6 @@ diagnostics log**). `MapOptions.chrome = MapCanvasChrome.BARE` in
 the style's credits somewhere reachable from the map. The credits are
 `ProximiioMapSession.attributions`, which for the venue style are OpenStreetMap (ODbL) and
 MapLibre. MapLibre strips the leading `©` from each credit; the app adds it back.
-
-## Floor numbers
-
-The relay reports the venue engine's floor numbers and the SDK resolves them to
-Proximi.io floors on its own. An engine floor number is a Proximi.io floor level, and the
-SDK syncs every floor with its level, so it derives the number-to-floor table itself. The
-app passes no `floorNoMap`, because a table supplied by the host switches that derivation
-off. A number the venue has no floor for is reported in the SDK log rather than drawn on
-a blank floor.
-
-One integer remains, in the tracked `venue.properties`, because the SDK cannot derive it:
-
-| Key | What it is |
-| --- | --- |
-| `BLUEIOT_GROUND_FLOOR_NO` | The engine floor number for the ground floor. Proximi.io calls it level `0`. This venue's LocalSense engine numbers floors −1, 1, 2, 3, 4 with no 0, and engine floor −1 is the ground floor, so the value is `-1`. For an engine that numbers the ground floor 1, the value is `1`. Empty means `0`, and then the key is not needed |
-
-It reaches the SDK as `BlueiotCloudRelayConfiguration.engineGroundFloorNumber` in
-`Venue.attachRelay`. At `-1` the SDK shifts the ground floor and the floors below it:
-engine floor −1 is level 0 and engine floor −2 is level −1, while engine floor 1 stays
-level 1. Engine floor 0 matches no floor and is reported in the SDK log. At `1` the shift
-applies to the ground floor and the floors above it: engine floor 1 is level 0 and engine
-floor 2 is level 1, while engine floor −1 stays level −1. A negative value requires SDK
-`6.0.0-beta.17` or later.
 
 ## Positioning while the app is backgrounded
 
@@ -202,7 +265,7 @@ stop within minutes of the screen going off.
 | Requirement | Where it is set | What a missing one looks like |
 | --- | --- | --- |
 | `serviceOptions` on the SDK configuration | `Venue.configuration` | Android freezes the process within minutes of the last Activity stopping. No socket read, no coroutine tick. `relayOnly` leaves this at `null`, which is foreground-only positioning |
-| `runsInBackground = true` on the relay configuration | `Venue.attachRelay` | The service runs, but the SDK pauses the relay provider whenever the app is backgrounded. The default is `false` |
+| `runsInBackground = true` on `BlueiotBindingConfiguration` | `VenueConfiguration.binding` | The service runs, but the SDK pauses the binding's provider whenever the app is backgrounded. The default is `false` |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK` | `AndroidManifest.xml` | From API 34 the platform refuses `startForeground` without the permission for the service's type, and the SDK derives the type mask from the permissions it holds |
 | A location grant | `LocationPrompt` | With no location grant and no Bluetooth grant, no foreground-service type is usable and the SDK does not start the service. It logs `Foreground service could not start: no foreground-service type is usable` and positions in the foreground only |
 
@@ -210,8 +273,9 @@ Those four are also all the place notifications need: a geofence notification re
 locked screen because the process that evaluates the geofence is the one the service keeps
 alive.
 
-Coarse location is all the app requests, and it is not used for the position: the venue's
-anchors locate the wristband. The grant is what lets the service exist.
+`LocationPrompt` requests coarse location, and it is not used for the position: the
+venue's anchors locate the wristband. The grant is what lets the service exist. Precise
+location is requested only before a bind that needs it (**The wristband binding**).
 `POST_NOTIFICATIONS` is requested with it on API 33 and above so the service's ongoing
 notification is visible; a refusal leaves the service running with the notification
 hidden. Background location is never requested.
@@ -219,13 +283,13 @@ hidden. Background location is never requested.
 The app's own manifest declares no Bluetooth permission and the app requests none at
 runtime: the phone scans nothing, and `ProximiioConfiguration.relayOnly` turns the SDK's
 iBeacon, Eddystone and UWB sources off. The libraries still add permissions to the merged
-manifest. At SDK `6.0.0-beta.17` and map `6.0.0-beta.13` the merged manifest holds:
+manifest. At SDK `6.0.0-beta.18` and map `6.0.0-beta.14` the merged manifest holds:
 
 | Permission | Declared by | Requested at runtime |
 | --- | --- | --- |
 | `INTERNET`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `WAKE_LOCK` | The app (and the SDK) | No, granted at install |
 | `ACCESS_COARSE_LOCATION`, `POST_NOTIFICATIONS` | The app (and the SDK) | Yes, by `LocationPrompt` |
-| `ACCESS_FINE_LOCATION` | The SDK and MapLibre | No. The app uses coarse location |
+| `ACCESS_FINE_LOCATION` | The app (and the SDK and MapLibre) | Yes, by `WristbandPrompt`, only when `locationReadiness()` asks for it |
 | `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` | The SDK | No |
 | `BLUETOOTH`, `BLUETOOTH_ADMIN` (`maxSdkVersion="30"`) | The SDK | No, granted at install |
 | `FOREGROUND_SERVICE_CONNECTED_DEVICE` | The SDK | No, granted at install. `includesConnectedDeviceType = false` keeps the type out of the service |
@@ -419,7 +483,7 @@ SDK's own warnings. The app adds these lines:
 | --- | --- |
 | `notifications: enabled` or `disabled` | At launch, `BlueiotMinimalApplication` |
 | `scene: foreground` / `scene: background` | `MainActivity.onStart` / `onStop` |
-| `wristband: <id>` | `Venue.follow` |
+| `wristband: active, online`, `wristband: ended, SUPERSEDED`, … | Each session state, `WristbandSession` |
 | `geofence enter · <name> · notified`, `… · not authorized` | `GeofenceNotifier` |
 | `journey playback: <name>, <speed>x`, `journey playback failed: <reason>` | Debug builds, `DebugPositionSource` |
 
@@ -430,8 +494,8 @@ transfer (`res/xml/data_extraction_rules.xml`), and so is the SDK's encrypted to
 
 The log carries no credential. The SDK redacts the shapes it recognises and its own
 application token. `VenueConfiguration.secrets` passes the application token and the
-relay token as `additionalSecrets`, so both are removed wherever they appear. The
-wristband number is written; it is printed on the band. The log rotates at 2 MB when
+relay-api app token as `additionalSecrets`, so both are removed wherever they appear. The
+app writes no wristband number. The log rotates at 2 MB when
 recording starts and keeps one previous generation,
 `proximiio-diagnostics-previous.log`. A report is capped at 10 MB.
 
@@ -462,13 +526,13 @@ adb logcat -s 'Proximiio/*'
 ## Testing without the venue
 
 There are two ways to see the app move without the venue's anchors: a journey played on
-the phone, in debug builds, and a journey played into the sandbox relay.
+the phone, in debug builds, and a journey played through the sandbox relay-api.
 
 ### A journey played on the phone
 
-Debug builds only. A journey drawn in MapTap is played on the phone in place of the
-cloud relay: `JourneyPlaybackProvider` generates the positions locally, with no relay
-and no LiveView run. The code is in the `debug` source set. A release build compiles
+Debug builds only. A journey drawn in Proximi.io Portal is played on the phone in place
+of the wristband's positions: `JourneyPlaybackProvider` generates the positions locally,
+with no relay-api and no LiveView run. The code is in the `debug` source set. A release build compiles
 `src/release/…/DebugPositionSource.kt` instead, so the release APK contains neither the
 picker nor the extra names.
 
@@ -478,13 +542,14 @@ at the bottom. The button opens a sheet that lists the organisation's journeys f
 `journeys()`, in the API's order, with distance, duration, waypoint count and levels
 from `ProximiioJourneyTimeline`. A journey that fails `validationFailure()` is listed
 disabled, with the reason in red. Tapping a playable journey opens its options: speed
-(1x, 2x or 5x) and loop. **Play** detaches the relay and attaches the playback.
+(1x, 2x or 5x) and loop. **Play** detaches the binding's provider and attaches the
+playback.
 
 **The controls.** While a journey plays, the button is replaced by a panel in the same
 corner: the journey name, the elapsed and total time, pause or resume, and stop. The
 panel reads the provider's `diagnostics` once a second and shows **Finished** when a
 journey that does not loop reaches its last waypoint. **Stop** detaches the playback and
-attaches the relay for the stored wristband, as at launch.
+attaches the binding's provider, as at launch.
 
 **Launch extras.** The same playback starts at launch when the intent carries a
 `journeyPlayback` extra:
@@ -502,23 +567,23 @@ adb shell am start -S -n io.proximi.blueiot.minimal/.MainActivity \
 | `journeySpeed` | Optional. Journey seconds per real second, `0.5` to `10`; the SDK clamps other values. Default `1` |
 | `journeyLoop` | Optional. `true` starts again after the last waypoint. Default `false` |
 
-`-S` stops the running app first, so the extras reach a fresh start. The wristband prompt
-still appears on first run. A journey that cannot be fetched attaches nothing; the
-controls show the reason, and **Stop** attaches the relay. The picker and the launch
-extras attach the provider through the same `DebugPositionSource.playJourney` call.
-Changing the wristband (long-press the map) ends the playback and applies the launch
-extras again. Android reads intent extras where the iOS app reads `-journeyPlayback`
-launch arguments.
+`-S` stops the running app first, so the extras reach a fresh start. The SDK starts only
+with an active wristband session, so a band must be bound first. A journey that cannot
+be fetched attaches nothing; the controls show the reason, and **Stop** attaches the
+binding's provider. The picker and the launch extras attach the provider through the same
+`DebugPositionSource.playJourney` call. The launch extras apply when the SDK starts;
+connecting another wristband does not end the playback. Android reads intent extras
+where the iOS app reads `-journeyPlayback` launch arguments.
 
-Playback runs with the screen locked (`runsInBackground = true`), as the relay does. The
+Playback runs with the screen locked (`runsInBackground = true`), as the binding does. The
 diagnostics log records `journey playback: <name>, <speed>x` or `journey playback
 failed: <reason>`.
 
-### A journey played into the sandbox relay
+### A journey played through the sandbox relay-api
 
-`scripts/journey-run.mjs` plays a journey drawn in MapTap into the Proximi.io sandbox
-relay as one wristband's positions. The app receives them through the same relay client
-it uses at the venue, in debug and release builds alike, with no code change. The script
+`scripts/journey-run.mjs` plays a journey drawn in Proximi.io Portal into the Proximi.io
+sandbox relay-api as one walker tag's positions. The app binds the walker's tag as it
+binds a wristband, in debug and release builds alike, with no code change. The script
 calls the LiveView run API at `https://live.proximi.fi`, the same API as the LiveView web
 page. It is the same file as in the iOS app.
 
@@ -527,10 +592,10 @@ Prerequisites:
 - Node 22 or later. The script has no dependencies.
 - A LiveView login: a Proximi.io user account (email and password) of the app's
   organisation.
-- In `secrets.properties`, `BLUEIOT_CLOUD_RELAY_URL` set to the sandbox relay host and
-  `BLUEIOT_CLOUD_RELAY_TOKEN` set to the sandbox stream token. Both come from your
-  Proximi.io contact. Rebuild and install after changing them
-  (`./gradlew :app:installDebug`).
+- `BLUEIOT_RELAY_URL` at the sandbox, `https://relay-api-sandbox.proximi.fi` (the
+  default), and `BLUEIOT_RELAY_APP_TOKEN` in `secrets.properties` set to the sandbox app
+  token. The token comes from your Proximi.io contact. Rebuild and install after changing
+  them (`./gradlew :app:installDebug`).
 
 ```sh
 node scripts/journey-run.mjs login --token-file ~/.liveview-token
@@ -545,24 +610,59 @@ node scripts/journey-run.mjs stop <run_id> --token-file ~/.liveview-token
 | --- | --- |
 | `login` | Prompts for the email and the password, the password without echo. Exchanges them for a Proximi.io user token and writes it to `--token-file` with mode 0600. The token is not printed |
 | `list` | The organisation's journeys: id, name, waypoint count |
-| `start` | Starts a run and prints its run id, walker and tag id. `--walker N` selects the organisation's wristband N on the relay; without it the lowest free walker is used. `--speed X` scales walking and dwelling. `--dry-run` prints the request and sends nothing |
+| `start` | Starts a run and prints its run id, walker and tag id. `--walker N` selects the organisation's walker N on the relay; without it the lowest free walker is used. `--speed X` scales walking and dwelling. `--dry-run` prints the request and sends nothing |
 | `status` | The organisation's runs, with state, walker and tag id |
 | `stop` | Stops a run. `pause` and `resume` take a run id the same way |
 
 The API accepts only a user token; an application token is refused with HTTP 403.
-`--ground-floor` must equal `BLUEIOT_GROUND_FLOOR_NO` in `venue.properties`, `-1`; that
-is the default.
+`--ground-floor` is the venue engine's number for the ground floor; `-1` is the default.
 
-**Wristband id.** Enter the walker's wristband id in the app's wristband prompt.
-LiveView's **Connect your app** card shows it for each walker; `start` and `status` print
-it as `tag`. The id of a walker does not change between runs. Long-press the map to
-change the stored id.
+**Walker tag id.** Enter the walker's tag id in the app's wristband prompt. LiveView's
+**Connect your app** card shows it for each walker; `start` and `status` print it as
+`tag`. The id of a walker does not change between runs. Long-press the map to connect
+another tag.
 
-**Shared relay.** The sandbox relay is shared between organisations. Every app that
-follows a walker's id receives its run. A looping run plays until it is stopped, for at
-most 12 hours, and is not tied to a LiveView session. Stop it with `stop` after the
-test. For the venue, restore the production relay values, rebuild, and enter the
-visitor's wristband id.
+**Shared sandbox.** The sandbox relay-api is shared between organisations and carries
+real wristbands next to the walkers. Bind only walker tags, or bands the operator names
+for the test: a bind of a band another phone follows takes it over. A looping run plays
+until it is stopped, for at most 12 hours, and is not tied to a LiveView session. Stop it
+with `stop` after the test, and tap **End visit** in the app. For the venue, set the
+venue's relay-api URL and app token, rebuild, and bind the visitor's wristband.
+
+**Zone rules.** The sandbox reports its rules in `/v1/meta`. While the operator has
+reception and authorized zones drawn (`bind_reception_required: true`,
+`takeover_location_required: true`):
+
+- A first bind of a tag needs the tag inside the reception zone. Otherwise the bind fails
+  with "Connect this wristband at the reception desk."
+- A take-over of a tag another phone follows needs the phone's location inside the
+  authorized zone. Otherwise it fails with "To take over this wristband, be inside the
+  museum …".
+- A rescan of the tag this phone already follows works anywhere.
+
+With no zones drawn both flags are `false`, and any bind and take-over succeeds.
+
+### Take-over test
+
+A manual test of wristband take-over between two phones. Both run this app against the
+same relay-api. Before the test, ask the operator which tag to use, announce the run, and
+start a walker journey on that tag (see above). In the steps, A and B are the two phones
+and `<tag>` is the walker's tag id.
+
+| Step | Action | Expected |
+| --- | --- | --- |
+| 1 | A: enter `<tag>`, tap **Connect** | A's status reads **Online**; the dot moves with the walker |
+| 2 | B: enter the same `<tag>`, tap **Connect** | B reads **Online** and receives the positions. A shows the prompt with "Your wristband was scanned by another phone." and its dot stops |
+| 3 | A: tap **Connect** (the field holds `<tag>`) | A reads **Online** again. B shows "Your wristband was scanned by another phone." |
+| 4 | A: tap **End visit**, then confirm | A shows the prompt with "Your visit has ended." Neither phone receives positions |
+
+With the zones drawn, step 1 needs the walker inside the reception zone, and steps 2 and
+3 need the taking phone's location inside the authorized zone. Outside it, step 2 fails
+on B with the take-over message and A stays **Online**; that result is correct for the
+rules. A location from a mock-location app is marked as simulated; the relay-api can
+refuse it. A repeated failure within a short time can return "Too many attempts. Try
+again in N seconds." The diagnostics log of each phone records the session states, for
+example `wristband: ended, SUPERSEDED`.
 
 ## Tests
 
@@ -570,18 +670,20 @@ visitor's wristband id.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Seventy-three tests in fourteen classes. Each covers behaviour that fails without anything
+Eighty tests in sixteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
 | --- | --- | --- |
-| `WristbandIdTests` | 6 | Every spelling of a tag id, and the canonical decimal form. An id read one way by the app and another way by the relay matches no tag, and no position arrives |
-| `WristbandStoreTests` | 3 | The stored id comes back canonical, a stored foreign spelling names the same tag, and nothing stored means no wristband |
+| `WristbandCopyTests` | 7 | `WristbandCopy`: the message per bind error, the take-over refusal per location cause, the rate-limit wait, the notice per end reason, the status line per link and signal, and a log line without a tag id |
+| `WristbandSessionTests` | 4 | When the map or the prompt is shown per binding state (a bind in progress keeps the screen), the notice of an ended session, and the permissions requested before a bind |
+| `WristbandIdTests` | 2 | The label is sent as typed, and a blank field names no wristband. A label rewritten by the app can name a different band |
+| `VenueConfigurationTests` | 3 | The sentence naming empty or invalid keys, and the binding configuration built from the URL and the app token. A missing key not named on screen leaves a **Connect** button that does nothing |
 | `JourneyPersistenceTests` | 5 | A visit round-trips with stop order and state; ending clears it; an empty journey and an unreadable value are no visit. A visit that does not survive a launch loses the plan silently |
 | `AmenityQueryTests` | 3 | `VenuePoi.nearestByAmenity`: the nearest place per amenity id, kinds taken from the venue data. A wrong read makes a venue with toilets look like a venue without any |
 | `VenuePoiTapTests` | 4 | `VenuePoi.tapped` against the feature ids `onFeatureTap` reports. A tap resolved to the room under a POI routes to the wrong place |
 | `GeofenceNotifierTests` | 5 | The notification title, body, log line and id. A privacy zone announced on a lock screen is what a privacy zone exists to prevent |
-| `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed` and the background settings of `Venue.configuration`. A flag left at its default stops position updates minutes after the screen locks |
+| `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed`, the background settings of `Venue.configuration` and `runsInBackground` on the binding configuration. A flag left at its default stops position updates minutes after the screen locks |
 | `DiagnosticsTests` | 2 | No configured secret reaches the log verbatim, and the report is inside the directory the `FileProvider` exposes |
 | `VisitRulesTests` | 15 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
 | `DeviationPromptTests` | 7 | `DeviationPrompt.after`: the events that open, close and keep the deviation prompt, and its sentences |
@@ -590,13 +692,13 @@ on screen looking wrong. The screens are not tested; they hold no logic.
 | `JourneyPickerTests` | 6 | Debug builds only. Picker rows: playable and unplayable journeys, the `validationFailure()` reason, the summary, API order and journeys without an id; the loading, empty and error states; the number formats |
 | `JourneyPlaybackSessionTests` | 7 | Debug builds only. The playback controls' states: start, pause, resume, finish, a failed fetch and stop; the launch extras; the options' log line |
 
-`VisitRulesTests` (except `endingAVisitOnceKeepsSingleRouteGuidance`, which has no iOS
-twin), `DeviationPromptTests`, `DiagnosticsTests.theLogNeverCarriesAConfiguredSecretVerbatim`,
+`WristbandCopyTests`, `VisitRulesTests` (except `endingAVisitOnceKeepsSingleRouteGuidance`,
+which has no iOS twin), `DeviationPromptTests`, `DiagnosticsTests.theLogNeverCarriesAConfiguredSecretVerbatim`,
 `JourneyPickerTests` and `JourneyPlaybackSessionTests` keep the iOS test names. The last
 three classes are in `src/testDebug`, because the code they test exists in debug builds
 only.
 
 JUnit 4, as the SDK uses. Robolectric only where `SharedPreferences`, the `FileProvider`
 or a `ProximiioMapSession` is involved; `VisitRulesTests` gives its navigators a
-`JourneyRouting` over one corridor and runs them with `kotlinx-coroutines-test`. The wristband spelling rule, the amenity query and the picker
-rules are plain JVM tests with no Android in them.
+`JourneyRouting` over one corridor and runs them with `kotlinx-coroutines-test`. The wristband text and session rules, the amenity query and the
+picker rules are plain JVM tests with no Android in them.
