@@ -12,6 +12,7 @@ import io.proximi.sdk.core.geo.GeoMath
 import io.proximi.sdk.core.model.JsonValue
 import io.proximi.sdk.core.model.ProximiioCoordinate
 import io.proximi.sdk.core.model.ProximiioFeature
+import io.proximi.sdk.core.model.ProximiioLanguage
 
 data class VenuePoi(
     val id: String,
@@ -26,9 +27,20 @@ data class VenuePoi(
     val amenityId: String?,
 ) {
     companion object {
-        /** Every place in the venue, sorted by title, case-insensitively. */
-        fun all(features: List<ProximiioFeature>): List<VenuePoi> =
-            features.mapNotNull(::of).sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, VenuePoi::title))
+        /**
+         * Every place in the venue, sorted by title, case-insensitively.
+         *
+         * [language] selects the translated title, as `MapOptions.language` does for the
+         * map labels. Pass the map's `resolvedLanguage(context)` so the app and the map
+         * show the same titles. The default is `ProximiioLanguage.preferred`.
+         */
+        fun all(
+            features: List<ProximiioFeature>,
+            language: String = ProximiioLanguage.preferred,
+        ): List<VenuePoi> =
+            features
+                .mapNotNull { of(it, language) }
+                .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER, VenuePoi::title))
 
         /**
          * Case-insensitive substring match on the title. An empty query returns every
@@ -63,7 +75,10 @@ data class VenuePoi(
          * `null` for a feature that is not a searchable place. Rooms, walls, level
          * changers and the walkable path network arrive in the same list.
          */
-        private fun of(feature: ProximiioFeature): VenuePoi? {
+        private fun of(
+            feature: ProximiioFeature,
+            language: String,
+        ): VenuePoi? {
             if (feature.propertyType != "poi") return null
             val geometry = feature.geometry ?: return null
             if (geometry.type != "Point") return null
@@ -76,10 +91,11 @@ data class VenuePoi(
 
             return VenuePoi(
                 id = feature.id,
-                // A venue labels a place `title` or `name`. The id is the fallback, so a
-                // mislabelled POI stays searchable and routable.
+                // `title(language)` reads the `title_i18n` entry for `language`, then
+                // `title`. A venue without a title uses `name`. The id is the fallback,
+                // so a mislabelled POI stays searchable and routable.
                 title =
-                    text(feature.properties?.get("title"))
+                    feature.title(language)?.ifEmpty { null }
                         ?: text(feature.properties?.get("name"))
                         ?: feature.id,
                 coordinate = ProximiioCoordinate(latitude = latitude, longitude = longitude),

@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MyLocation
@@ -35,9 +38,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +55,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,9 +71,12 @@ import io.proximi.map.kit.MapCameraFollow
 import io.proximi.map.kit.MapCanvasChrome
 import io.proximi.map.live.MapOptions
 import io.proximi.map.live.ProximiioMapSession
+import io.proximi.sdk.Proximiio
+import io.proximi.sdk.ProximiioDiagnosticsEventKind
 import io.proximi.sdk.computeRoute
 import io.proximi.sdk.core.model.ProximiioCoordinate
 import io.proximi.sdk.features
+import io.proximi.sdk.recordDiagnosticsEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -111,9 +123,17 @@ fun VenueMapScreen(
                                         to = MapColor.hex(0xED3731),
                                     ),
                             ),
-                        // The "Smooth position" switch in the long-press sheet
-                        // (`PositionSmoothingSetting.kt`). Off draws the dot exactly on each fix.
-                        position = PositionStyle.VENUE.copy(smoothing = PositionSmoothingSetting.smoothing(store)),
+                        // The "Smooth position" switch and the "Smoothing" values in the
+                        // long-press sheet (`PositionSmoothingSetting.kt`). Off draws the dot
+                        // exactly on each fix. The values apply only while the switch is on.
+                        position =
+                            PositionStyle.VENUE.copy(
+                                smoothing = PositionSmoothingSetting.smoothing(store),
+                                smoothingTuning = PositionSmoothingSetting.tuning(store),
+                            ),
+                        // The "Map language" choice in the long-press sheet
+                        // (`MapLanguageSetting.kt`). `null` is Automatic.
+                        language = MapLanguageSetting.language(store),
                     ),
             )
         }
@@ -132,18 +152,67 @@ fun VenueMapScreen(
     // registered once and would otherwise capture the first `false` permanently.
     val isChangingWristband = remember { mutableStateOf(false) }
     var smoothsPosition by remember { mutableStateOf(PositionSmoothingSetting.isOn(store)) }
+    // The "Smoothing" fields as typed, so a field shows a value the map cannot read.
+    var smoothingTexts by remember {
+        mutableStateOf(PositionSmoothingSetting.Knob.entries.associateWith { PositionSmoothingSetting.text(it, store) })
+    }
+    var mapLanguage by remember { mutableStateOf(MapLanguageSetting.language(store).orEmpty()) }
 
     val guidance by session.guidance.collectAsStateWithLifecycle()
     val position by session.position.collectAsStateWithLifecycle()
     val cameraMode by session.cameraMode.collectAsStateWithLifecycle()
     val credits by session.attributions.collectAsStateWithLifecycle()
 
+    /**
+     * Reads the places with their titles in the map's language, so the search and the map
+     * labels agree. A local cache read, not a download: `Venue.start` fetched the
+     * features. The picked destination takes its title in the new language.
+     */
+    suspend fun loadPlaces() {
+        places = VenuePoi.all(venue.sdk.features(), session.options.resolvedLanguage(context))
+        destination = destination?.let { picked -> places.firstOrNull { it.id == picked.id } ?: picked }
+    }
+
+    /** Writes the map smoothing in use, with its tuning values, to the diagnostics log. */
+    fun recordSmoothing() {
+        Proximiio.recordDiagnosticsEvent(
+            ProximiioDiagnosticsEventKind.state,
+            PositionSmoothingSetting.summary(session.options.position),
+        )
+    }
+
+    /** Writes the language the map draws in to the diagnostics log. */
+    fun recordLanguage() {
+        Proximiio.recordDiagnosticsEvent(
+            ProximiioDiagnosticsEventKind.state,
+            MapLanguageSetting.summary(session.options, session.options.resolvedLanguage(context)),
+        )
+    }
+
+    /**
+     * Applies the stored "Smooth position" value and "Smoothing" values to the map
+     * session. Assigning `session.options` takes effect from the next frame and does not
+     * reload the style.
+     */
+    fun applySmoothingSetting() {
+        val options = session.options
+        val position =
+            options.position.copy(
+                smoothing = PositionSmoothingSetting.smoothing(store),
+                smoothingTuning = PositionSmoothingSetting.tuning(store),
+            )
+        if (position == options.position) return
+        session.options = options.copy(position = position)
+        recordSmoothing()
+    }
+
     LaunchedEffect(session) {
         // Turn-by-turn guidance is off by default. Setting the rules is the whole
         // opt-in; the session then follows the route it is already drawing.
         session.guidanceRules = RouteFollowRules.VENUE_WALK
-        // A local cache read, not a download: `Venue.start` already fetched it.
-        places = VenuePoi.all(venue.sdk.features())
+        recordSmoothing()
+        recordLanguage()
+        loadPlaces()
     }
 
     suspend fun route(to: VenuePoi) {
@@ -347,12 +416,32 @@ fun VenueMapScreen(
                     SmoothPositionSwitch(isOn = smoothsPosition) { isOn ->
                         smoothsPosition = isOn
                         PositionSmoothingSetting.save(isOn, store)
-                        // Assigning the options applies the change to the running map.
-                        val options = session.options
-                        session.options =
-                            options.copy(
-                                position = options.position.copy(smoothing = PositionSmoothingSetting.smoothing(isOn)),
-                            )
+                        applySmoothingSetting()
+                    }
+                    SmoothingFields(
+                        texts = smoothingTexts,
+                        onChange = { knob, text ->
+                            smoothingTexts = smoothingTexts + (knob to text)
+                            PositionSmoothingSetting.save(text, knob, store)
+                            applySmoothingSetting()
+                        },
+                        onReset = {
+                            PositionSmoothingSetting.resetTuning(store)
+                            smoothingTexts = PositionSmoothingSetting.Knob.entries.associateWith { "" }
+                            applySmoothingSetting()
+                        },
+                    )
+                    HorizontalDivider()
+                    MapLanguageChoice(selected = mapLanguage) { value ->
+                        mapLanguage = value
+                        MapLanguageSetting.save(value, store)
+                        val language = MapLanguageSetting.language(store)
+                        if (session.options.language != language) {
+                            // Redraws the labels and floor names without a style reload.
+                            session.options = session.options.copy(language = language)
+                            recordLanguage()
+                            scope.launch { loadPlaces() }
+                        }
                     }
                     HorizontalDivider()
                     SupportReportButton(sdk = venue.sdk)
@@ -383,6 +472,75 @@ private fun SmoothPositionSwitch(
         }
         Text(
             "Off draws your position exactly on each update from the venue, without smoothing. For testing.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
+ * The "Smoothing" section of the long-press sheet: one decimal field per
+ * `PositionSmoothingSetting.Knob`, and **Reset to defaults**. [texts] holds each field's
+ * text as typed.
+ */
+@Composable
+private fun SmoothingFields(
+    texts: Map<PositionSmoothingSetting.Knob, String>,
+    onChange: (PositionSmoothingSetting.Knob, String) -> Unit,
+    onReset: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Smoothing", style = MaterialTheme.typography.labelLarge)
+        for (knob in PositionSmoothingSetting.Knob.entries) {
+            OutlinedTextField(
+                value = texts[knob].orEmpty(),
+                onValueChange = { onChange(knob, it) },
+                label = { Text(knob.title) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal, imeAction = ImeAction.Next),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        TextButton(onClick = onReset) { Text("Reset to defaults") }
+        Text(
+            "Applies only when Smooth position is on. An empty field uses the default. " +
+                "A comma or a dot is the decimal separator. Reset to defaults empties every field.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
+ * The "Language" section of the long-press sheet: the **Map language** choice
+ * (`MapLanguageSetting`). [selected] is a `MapLanguageSetting.Choice.value`.
+ */
+@Composable
+private fun MapLanguageChoice(
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    Column(modifier = Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Language", style = MaterialTheme.typography.labelLarge)
+        Text("Map language", style = MaterialTheme.typography.bodyMedium)
+        for (choice in MapLanguageSetting.choices) {
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = choice.value == selected,
+                            onClick = { onSelect(choice.value) },
+                            role = Role.RadioButton,
+                        ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = choice.value == selected, onClick = null)
+                Text(choice.title, modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+        Text(
+            "Sets the language of the place titles and floor names on the map and in search. " +
+                "A title without an Arabic or English translation shows its default title. " +
+                "Automatic uses the app language, English.",
             style = MaterialTheme.typography.bodySmall,
         )
     }

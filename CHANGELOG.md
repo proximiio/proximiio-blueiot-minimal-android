@@ -14,9 +14,21 @@ All notable changes to this app are documented here. The format follows
 - **Smooth position** switch in the long-press sheet on the map, in debug and release
   builds. Off draws the position exactly on each update from the venue, without
   smoothing, for testing. The change applies to the map at once. On is the default.
+- **Smoothing** section in the long-press sheet: one decimal field per
+  `PositionSmoothingTuning` value, each titled with its unit and the map default, and
+  **Reset to defaults**. An empty or invalid field uses the default, a comma is read as the
+  decimal separator, and the map clamps the value. The values apply at once, only while
+  Smooth position is on, and are stored under the iOS keys.
+- **Language** section in the long-press sheet: **Map language** (Automatic, English,
+  Arabic) sets `MapOptions.language`, and the search titles use the same language. Stored
+  under `mapLanguage`; the change applies at once.
+- `res/xml/locales_config.xml` declares English, the app's one language, so the map's
+  Automatic language is English as on iOS.
+- The diagnostics log records the smoothing values and the map language in use.
 
 ### Changed
 
+- The app pins Proximi.io SDK 6.0.0-beta.20 and map 6.0.0-beta.15: translated place and floor titles, and `PositionSmoothingTuning`.
 - The app pins Proximi.io SDK 6.0.0-beta.19: right after a wristband connects, the status reads awaiting the first fix instead of offline or silent.
 
 - The app positions through the SDK's wristband binding (`BlueiotWristbandBinding`,

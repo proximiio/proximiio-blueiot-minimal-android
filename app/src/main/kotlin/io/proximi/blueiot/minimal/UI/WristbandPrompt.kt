@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -61,8 +63,8 @@ import kotlinx.coroutines.launch
  *   MapLibre's attribution control (`VenueMapScreen`), so an app that hides it must
  *   show the credits itself. Empty on the full-screen prompt, when no style is loaded.
  * @param onCancel `null` on the full-screen prompt, when there is nothing to return to.
- * @param footer shown under the credits. The map's sheet puts the support report
- *   button here.
+ * @param footer shown under the credits. The map's sheet puts the map settings and
+ *   the support report button here.
  * @param onSave called after a successful bind, with the label that was bound.
  */
 @Composable
@@ -123,8 +125,9 @@ fun WristbandPrompt(
         }
     }
 
+    // Scrolls because the map's sheet adds the map settings in `footer`.
     Column(
-        modifier = Modifier.fillMaxWidth().padding(24.dp),
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Your wristband", style = MaterialTheme.typography.titleMedium)

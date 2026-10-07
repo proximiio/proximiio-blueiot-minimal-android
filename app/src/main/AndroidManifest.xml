@@ -64,13 +64,21 @@
       "Positioning while the app is backgrounded"). The app requests none of them.
     -->
 
+    <!--
+      `localeConfig` lists the app's languages in the system's per-app language settings
+      from API 33. The SDK reads `res/xml/locales_config.xml` itself on every API level to
+      resolve the map's Automatic language, so the file matters below 33 too.
+      `tools:targetApi` marks the attribute as intended for API 33 and higher.
+    -->
     <application
+        tools:targetApi="tiramisu"
         android:name=".BlueiotMinimalApplication"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/full_backup_content"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:supportsRtl="true"
         android:theme="@style/Theme.VenueMap">
 
