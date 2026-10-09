@@ -28,7 +28,7 @@ All notable changes to this app are documented here. The format follows
 
 ### Changed
 
-- The app pins Proximi.io SDK 6.0.0-beta.20 and map 6.0.0-beta.15: translated place and floor titles, and `PositionSmoothingTuning`.
+- The app pins Proximi.io SDK 6.0.0-beta.21 and map 6.0.0-beta.16: route options and route duration, the runtime service notification, and compass heading on the map.
 - The app pins Proximi.io SDK 6.0.0-beta.19: right after a wristband connects, the status reads awaiting the first fix instead of offline or silent.
 
 - The app positions through the SDK's wristband binding (`BlueiotWristbandBinding`,
