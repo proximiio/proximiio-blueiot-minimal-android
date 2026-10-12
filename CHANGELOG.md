@@ -28,6 +28,7 @@ All notable changes to this app are documented here. The format follows
 
 ### Changed
 
+- The app pins Proximi.io SDK 6.0.0-beta.23 and map 6.0.0-beta.18: journey stops can be ordered by walking time, numbered stop markers and walked legs are drawn on the map, and a stop walked past can count as visited (`JourneyRules.passedStops`). The SDK adds route durations.
 - The app pins Proximi.io map 6.0.0-beta.17 (SDK stays 6.0.0-beta.22): journey stops can be marked done, skipped, reopened or made active, and a visit restored during a detour is tracked from `start()`. The new `JourneyEvent.StopSkipped` leaves the route prompt as it is, like the other stop events.
 - The app pins Proximi.io SDK 6.0.0-beta.22 (map stays 6.0.0-beta.16): polygon geofences now fire, each geofence carries its `remoteId`, and level changers attach to the nearest corridor in routing.
 - The app pins Proximi.io SDK 6.0.0-beta.21 and map 6.0.0-beta.16: route options and route duration, the runtime service notification, and compass heading on the map.
