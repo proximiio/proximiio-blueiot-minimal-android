@@ -28,6 +28,7 @@ All notable changes to this app are documented here. The format follows
 
 ### Changed
 
+- The app pins Proximi.io SDK 6.0.0-beta.22 (map stays 6.0.0-beta.16): polygon geofences now fire, each geofence carries its `remoteId`, and level changers attach to the nearest corridor in routing.
 - The app pins Proximi.io SDK 6.0.0-beta.21 and map 6.0.0-beta.16: route options and route duration, the runtime service notification, and compass heading on the map.
 - The app pins Proximi.io SDK 6.0.0-beta.19: right after a wristband connects, the status reads awaiting the first fix instead of offline or silent.
 
