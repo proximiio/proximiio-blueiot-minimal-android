@@ -13,6 +13,8 @@ import io.proximi.map.core.FloorKey
 import io.proximi.map.core.Journey
 import io.proximi.map.core.JourneyOrderOrigin
 import io.proximi.map.core.JourneyOrderProposal
+import io.proximi.map.core.JourneyPassedStopRule
+import io.proximi.map.core.JourneyRules
 import io.proximi.map.core.JourneyStop
 import io.proximi.map.core.MapCoordinate
 import io.proximi.map.core.RouteFollowRules
@@ -239,6 +241,17 @@ class VisitRulesTests {
         )
     }
 
+    @Test
+    fun visitRules() {
+        assertEquals(JourneyRules.Advance.OnDeparture(8.0), JourneyRules.VISIT.advance)
+        assertEquals(JourneyPassedStopRule.VENUE_WALK, JourneyRules.VISIT.passedStops)
+        assertEquals(
+            RouteFollowRules.ArrivalRadius.FromAccuracy(multiplier = 2.5, minimumMeters = 5.0, maximumMeters = 10.0),
+            RouteFollowRules.VISIT.arrival,
+        )
+        assertEquals(1.0, RouteFollowRules.VISIT.arrivalDwellSeconds, 0.0)
+    }
+
     // MARK: - Single-route re-route
 
     private fun guidance(
@@ -339,7 +352,7 @@ class VisitRulesTests {
     fun endingAVisitSwitchesGuidanceOffUntilTheRulesAreSetAgain() =
         runTest {
             val session = session()
-            session.guidanceRules = RouteFollowRules.VENUE_WALK
+            session.guidanceRules = RouteFollowRules.VISIT
             val navigator =
                 JourneyNavigator(
                     session,
@@ -351,8 +364,8 @@ class VisitRulesTests {
             navigator.end()
             assertNull(session.guidanceRules)
 
-            session.guidanceRules = RouteFollowRules.VENUE_WALK // `VenueMapScreen`'s `onEnd`
-            assertEquals(RouteFollowRules.VENUE_WALK, session.guidanceRules)
+            session.guidanceRules = RouteFollowRules.VISIT // `VenueMapScreen`'s `onEnd`
+            assertEquals(RouteFollowRules.VISIT, session.guidanceRules)
         }
 
     /**
@@ -378,12 +391,12 @@ class VisitRulesTests {
                     navigator.end()
                 }
 
-            ending.end { session.guidanceRules = RouteFollowRules.VENUE_WALK }
+            ending.end { session.guidanceRules = RouteFollowRules.VISIT }
             ending.disposed()
 
             assertEquals(1, ends)
             assertTrue(ending.hasEnded)
-            assertEquals(RouteFollowRules.VENUE_WALK, session.guidanceRules)
+            assertEquals(RouteFollowRules.VISIT, session.guidanceRules)
         }
 
     /**

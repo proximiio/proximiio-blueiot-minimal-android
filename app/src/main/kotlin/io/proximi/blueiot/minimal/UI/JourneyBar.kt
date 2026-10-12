@@ -17,6 +17,12 @@
 //  `proposeOrder` measures an order, a tap on it calls `apply`, and `replanFromHere` runs
 //  only when the visitor asks for it.
 //
+//  Arrival: the library marks the active stop reached after the visitor stays within
+//  5–10 m of it for 1 s (`RouteFollowRules.VISIT`), and moves on once the visitor is 8 m
+//  away (`JourneyRules.VISIT`). The library also marks a planned stop done when the
+//  visitor walked past it without an arrival, for example out of order or with fixes too
+//  sparse for the dwell (`passedStops`).
+//
 package io.proximi.blueiot.minimal
 
 import android.content.SharedPreferences
@@ -75,8 +81,10 @@ import io.proximi.map.core.JourneyEvent
 import io.proximi.map.core.JourneyOrderOrigin
 import io.proximi.map.core.JourneyOrderProposal
 import io.proximi.map.core.JourneyOverlayStyle
+import io.proximi.map.core.JourneyRules
 import io.proximi.map.core.JourneyStop
 import io.proximi.map.core.MapLevelFormat
+import io.proximi.map.core.RouteFollowRules
 import io.proximi.map.live.JourneyNavigator
 import io.proximi.map.live.ProximiioMapSession
 import io.proximi.sdk.Proximiio
@@ -111,7 +119,14 @@ fun JourneyBar(
     // (`JourneyDeviationRules`).
     val navigator =
         remember(session, journey) {
-            JourneyNavigator(session, journey).apply { deviationPolicy = JourneyDeviationPolicy.ASK_APP }
+            JourneyNavigator(
+                session,
+                journey,
+                // Moves on 8 m from a stop reached, and marks stops walked past as visited.
+                rules = JourneyRules.VISIT,
+                // Arrival at a stop within 2.5 × the fix accuracy (5–10 m) for 1 s.
+                guidanceRules = RouteFollowRules.VISIT,
+            ).apply { deviationPolicy = JourneyDeviationPolicy.ASK_APP }
         }
 
     val plan by navigator.journey.collectAsStateWithLifecycle()
@@ -315,8 +330,8 @@ fun JourneyBar(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (navigator.hasArrived) {
-                    // `JourneyRules.advance` defaults to `Advance.Manual`, so arrival
-                    // does not move the visit on. This button calls `advance()`.
+                    // The visit moves on by itself 8 m from the stop (`JourneyRules.VISIT`).
+                    // This button calls `advance()` to move on at once.
                     Button(onClick = { scope.launch { navigator.advance() } }) { Text("Continue") }
                 }
                 if (navigator.detourStop == null) {

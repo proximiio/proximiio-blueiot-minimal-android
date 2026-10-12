@@ -65,6 +65,7 @@ import io.proximi.map.compose.ProximiioMap
 import io.proximi.map.core.Journey
 import io.proximi.map.core.MapColor
 import io.proximi.map.core.PositionStyle
+import io.proximi.map.core.PositionTrailStyle
 import io.proximi.map.core.RouteFollowRules
 import io.proximi.map.core.RouteLineStyle
 import io.proximi.map.kit.MapCameraFollow
@@ -107,6 +108,9 @@ fun VenueMapScreen(
                     MapOptions(
                         // The library's own floor picker; this app adds no other.
                         floorSelector = MapOptions.FloorSelector.TRAILING,
+                        // Keeps the visitor's fixes of the last 15 minutes for the walked
+                        // trail (`position.trail`).
+                        trail = MapOptions.Trail.LastMinutes(15.0),
                         // Draw whatever route is set, and clear it when none is.
                         route = MapOptions.Route.AUTOMATIC,
                         // No attribution control, MapLibre logo or compass over the map.
@@ -114,7 +118,8 @@ fun VenueMapScreen(
                         // itself; the long-press sheet lists them.
                         chrome = MapCanvasChrome.BARE,
                         // The route ahead runs from blue at the visitor to red at the
-                        // destination. It replaces the route line of the venue style.
+                        // destination. It replaces the route line of the venue style. The
+                        // traveled part is not drawn: the walked trail shows that path.
                         routeLineStyle =
                             RouteLineStyle(
                                 remaining =
@@ -122,6 +127,7 @@ fun VenueMapScreen(
                                         from = MapColor.hex(0x3F69FF),
                                         to = MapColor.hex(0xED3731),
                                     ),
+                                completedOpacity = 0.0,
                             ),
                         // The "Smooth position" switch and the "Smoothing" values in the
                         // long-press sheet (`PositionSmoothingSetting.kt`). Off draws the dot
@@ -130,6 +136,14 @@ fun VenueMapScreen(
                             PositionStyle.VENUE.copy(
                                 smoothing = PositionSmoothingSetting.smoothing(store),
                                 smoothingTuning = PositionSmoothingSetting.tuning(store),
+                                // The walked trail: the visitor's own fixes in `#3F69FF` at 30 %.
+                                trail =
+                                    PositionTrailStyle(
+                                        isVisible = true,
+                                        color = MapColor.hex(0x3F69FF),
+                                        widthDp = 6.0,
+                                        opacity = 0.3,
+                                    ),
                             ),
                         // The "Map language" choice in the long-press sheet
                         // (`MapLanguageSetting.kt`). `null` is Automatic.
@@ -208,8 +222,9 @@ fun VenueMapScreen(
 
     LaunchedEffect(session) {
         // Turn-by-turn guidance is off by default. Setting the rules is the whole
-        // opt-in; the session then follows the route it is already drawing.
-        session.guidanceRules = RouteFollowRules.VENUE_WALK
+        // opt-in; the session then follows the route it is already drawing. Arrival is
+        // within 2.5 × the fix accuracy (5–10 m) for 1 s, as at a stop of a visit.
+        session.guidanceRules = RouteFollowRules.VISIT
         recordSmoothing()
         recordLanguage()
         loadPlaces()
@@ -307,7 +322,7 @@ fun VenueMapScreen(
                     // journey owns while it runs. Setting the rules again restores this
                     // screen's single-route guidance, and nothing ends the navigator after
                     // this.
-                    session.guidanceRules = RouteFollowRules.VENUE_WALK
+                    session.guidanceRules = RouteFollowRules.VISIT
                 },
             )
         } else {

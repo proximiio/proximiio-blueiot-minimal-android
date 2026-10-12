@@ -4,15 +4,50 @@
 //
 //  The rules behind the visit's text and controls: when a new visit is put in the
 //  shortest order, what the plan says about the order, what the bar says during a
-//  stop-off, and ending the navigator once. `JourneyBar` and `JourneyPlanSheet` call
-//  these and hold no rule of their own.
+//  stop-off, when a stop is reached and left, and ending the navigator once.
+//  `JourneyBar` and `JourneyPlanSheet` call these and hold no rule of their own.
 //
 package io.proximi.blueiot.minimal
 
 import io.proximi.map.core.Journey
 import io.proximi.map.core.JourneyOrderProposal
+import io.proximi.map.core.JourneyPassedStopRule
+import io.proximi.map.core.JourneyRules
 import io.proximi.map.core.JourneyStop
+import io.proximi.map.core.RouteFollowRules
 import kotlin.math.roundToInt
+
+/**
+ * The visit moves to the next stop once the visitor is 8 m from the stop reached.
+ * **Continue** on the bar moves on at once.
+ *
+ * `passedStops = JourneyPassedStopRule.VENUE_WALK` marks a planned stop done when a fix
+ * lands within 5 m of it on its floor and a later fix is more than 9 m from it. A fix
+ * with an accuracy worse than 8 m does not count as within 5 m. Nothing is marked during
+ * a stop-off.
+ */
+val JourneyRules.Companion.VISIT: JourneyRules
+    get() =
+        JourneyRules(
+            advance = JourneyRules.Advance.OnDeparture(8.0),
+            passedStops = JourneyPassedStopRule.VENUE_WALK,
+        )
+
+/**
+ * Arrival at a destination or at a stop of a visit: within 2.5 × the fix accuracy, at
+ * least 5 m and at most 10 m, for 1 s. The other values are `RouteFollowRules.VENUE_WALK`'s.
+ */
+val RouteFollowRules.Companion.VISIT: RouteFollowRules
+    get() =
+        RouteFollowRules.VENUE_WALK.copy(
+            arrival =
+                RouteFollowRules.ArrivalRadius.FromAccuracy(
+                    multiplier = 2.5,
+                    minimumMeters = 5.0,
+                    maximumMeters = 10.0,
+                ),
+            arrivalDwellSeconds = 1.0,
+        )
 
 /** The shortest order applied once to a new visit, without a tap. */
 object StartOrder {

@@ -403,17 +403,27 @@ search only.
 
 ## Turn-by-turn
 
-`session.guidanceRules = RouteFollowRules.VENUE_WALK` in `VenueMapScreen` is the whole
+`session.guidanceRules = RouteFollowRules.VISIT` in `VenueMapScreen` is the whole
 opt-in; guidance is off by default. The map library then follows the route it is already
 drawing and republishes `session.guidance` on every position. The bottom bar shows the
 next manoeuvre, the distance left to it, and arrival.
+
+`RouteFollowRules.VISIT` (`VisitRules.kt`) is `RouteFollowRules.VENUE_WALK` with
+`ArrivalRadius.FromAccuracy(multiplier = 2.5, minimumMeters = 5.0, maximumMeters = 10.0)`
+and `arrivalDwellSeconds = 1.0`: arrival is within 2.5 × the fix accuracy, at least 5 m and
+at most 10 m, for 1 s. The same rules apply to each stop of a visit.
+
+The route line shows the route ahead only (`RouteLineStyle.completedOpacity = 0.0`). The
+path the visitor walked is drawn from the visitor's own fixes instead:
+`MapOptions.trail = MapOptions.Trail.LastMinutes(15.0)` keeps the fixes of the last 15
+minutes, and `PositionStyle.trail` draws them in `#3F69FF`, 6 dp, at 30 % opacity.
 
 The instruction sentences are the app's, in `GuidanceLine.instruction`, because
 `RouteManoeuvre.Kind` carries no display strings.
 
 `RouteGuidance.isOffRoute` latches after `offRouteFixes` consecutive positions beyond
 `offRouteMeters`, and clears on the first position back inside.
-`RouteFollowRules.VENUE_WALK` sets those to 3 and 12 m. The session does not re-route.
+`RouteFollowRules.VISIT` keeps the `VENUE_WALK` values, 3 and 12 m. The session does not re-route.
 While `isOffRoute` is `true` the bar reads "You have left the route." and shows **New route
 from here**, which computes a new route to the same place from the visitor's position
 (`GuidanceLine.offersReroute`). The app adds no detector of its own. The instruction is one
@@ -421,7 +431,7 @@ line; the app shows no step list.
 
 Ending a visit hands the guidance back to this bar. `JourneyNavigator.end()` sets
 `guidanceRules` to `null`; `JourneyBar` calls it once, through `VisitEnding`, and then
-`VenueMapScreen` sets `RouteFollowRules.VENUE_WALK` again. A second `end()` after that,
+`VenueMapScreen` sets `RouteFollowRules.VISIT` again. A second `end()` after that,
 when the bar leaves the screen, would switch single-route guidance off, with no instruction
 and no off-route line.
 
@@ -479,8 +489,16 @@ thresholds are the library defaults in `JourneyDeviationRules`; the app sets non
 
 The bar shows the stop in hand, `overview.remainingStops`, `overview.remainingMeters`, the
 ETA, the count of `overview.unreachableStopIds`, and **Continue** once the visitor has
-arrived. `JourneyRules.advance` defaults to `Advance.Manual`, so arrival does not move the
-visit on by itself.
+arrived.
+
+`JourneyBar` creates the navigator with `rules = JourneyRules.VISIT` and
+`guidanceRules = RouteFollowRules.VISIT` (`VisitRules.kt`):
+
+| Setting | Value | Effect |
+| --- | --- | --- |
+| `JourneyRules.advance` | `Advance.OnDeparture(8.0)` | The visit moves to the next stop once the visitor is 8 m from the stop reached. **Continue** moves on at once |
+| `JourneyRules.passedStops` | `JourneyPassedStopRule.VENUE_WALK` | A planned stop is marked done when a fix lands within 5 m of it on its floor and a later fix is more than 9 m from it. A fix with an accuracy worse than 8 m does not count as within 5 m. Nothing is marked during a stop-off |
+| `RouteFollowRules.arrival` | `FromAccuracy(2.5, 5.0, 10.0)`, dwell 1 s | A stop is reached within 2.5 × the fix accuracy, 5–10 m, for 1 s |
 
 The plan is changed on the bar and in **Your visit**, the list button on the bar:
 
@@ -737,7 +755,7 @@ on screen looking wrong. The screens are not tested; they hold no logic.
 | `GeofenceNotifierTests` | 5 | The notification title, body, log line and id. A privacy zone announced on a lock screen is what a privacy zone exists to prevent |
 | `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed`, the background settings of `Venue.configuration` and `runsInBackground` on the binding configuration. A flag left at its default stops position updates minutes after the screen locks |
 | `DiagnosticsTests` | 2 | No configured secret reaches the log verbatim, and the report is inside the directory the `FileProvider` exposes |
-| `VisitRulesTests` | 15 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
+| `VisitRulesTests` | 16 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, the visit rules (`JourneyRules.VISIT`, `RouteFollowRules.VISIT`), `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
 | `DeviationPromptTests` | 7 | `DeviationPrompt.after`: the events that open, close and keep the deviation prompt, and its sentences |
 | `SdkLogcatTests` | 2 | Each SDK log level maps to a logcat priority, and the tag names the category |
 | `JourneyPlaybackLaunchTests` | 5 | Debug builds only. The launch extras in each form `adb` sends them |
