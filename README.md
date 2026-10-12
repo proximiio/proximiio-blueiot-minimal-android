@@ -92,9 +92,9 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.20` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.20` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.15` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.23` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.23` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.18` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
@@ -740,7 +740,7 @@ example `wristband: ended, SUPERSEDED`.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Eighty tests in sixteen classes. Each covers behaviour that fails without anything
+Eighty-three tests in fourteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
