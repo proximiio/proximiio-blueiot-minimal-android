@@ -103,6 +103,23 @@ class WristbandCopyTests {
 
     // End reasons
 
+    /**
+     * A session the relay-api gives no verdict on ends with `SessionLost`. The map closes,
+     * and the wristband prompt asks the visitor to connect again.
+     */
+    @Test
+    fun lostSessionAsksToConnectAgain() {
+        assertEquals(
+            "The connection to your wristband was lost. Connect it again.",
+            WristbandCopy.notice(BlueiotBindingEndReason.SessionLost),
+        )
+        assertNull(WristbandCopy.status(BlueiotBindingState.Ended(BlueiotBindingEndReason.SessionLost)))
+        assertEquals(
+            "The wristband session has ended. Connect the wristband again.",
+            WristbandCopy.message(BlueiotBindingError.SessionLost(requestID = null)),
+        )
+    }
+
     @Test
     fun supersededNoticeNamesTheOtherPhone() {
         assertTrue(

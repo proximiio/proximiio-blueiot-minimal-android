@@ -92,9 +92,9 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.23` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.23` |
-| `io.proximi.map:proximiio-map` | `6.0.0-beta.18` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.26` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.26` |
+| `io.proximi.map:proximiio-map` | `6.0.0-beta.21` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
 
@@ -747,12 +747,12 @@ example `wristband: ended, SUPERSEDED`.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Eighty-five tests in fourteen classes. Each covers behaviour that fails without anything
+Eighty-seven tests in fourteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
 | --- | --- | --- |
-| `WristbandCopyTests` | 9 | `WristbandCopy`: the message per bind error, the take-over refusal per location cause, the refused swap, the rate-limit and signing waits, the notice per end reason, the status line per link and signal, and a log line without a tag id |
+| `WristbandCopyTests` | 10 | `WristbandCopy`: the message per bind error, the take-over refusal per location cause, the refused swap, the rate-limit and signing waits, the notice per end reason (a lost session asks to connect again), the status line per link and signal, and a log line without a tag id |
 | `WristbandSessionTests` | 4 | When the map or the prompt is shown per binding state (a bind in progress keeps the screen), the notice of an ended session, and the permissions requested before a bind |
 | `WristbandIdTests` | 2 | The label is sent as typed, and a blank field names no wristband. A label rewritten by the app can name a different band |
 | `VenueConfigurationTests` | 3 | The sentence naming empty or invalid keys, and the binding configuration built from the URL and the app token. A missing key not named on screen leaves a **Connect** button that does nothing |
@@ -762,7 +762,7 @@ on screen looking wrong. The screens are not tested; they hold no logic.
 | `GeofenceNotifierTests` | 5 | The notification title, body, log line and id. A privacy zone announced on a lock screen is what a privacy zone exists to prevent |
 | `BackgroundPositioningTests` | 3 | `LocationPrompt.isOwed`, the background settings of `Venue.configuration` and `runsInBackground` on the binding configuration. A flag left at its default stops position updates minutes after the screen locks |
 | `DiagnosticsTests` | 2 | No configured secret reaches the log verbatim, and the report is inside the directory the `FileProvider` exposes |
-| `VisitRulesTests` | 16 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, the visit rules (`JourneyRules.VISIT`, `RouteFollowRules.VISIT`), `GuidanceLine.offersReroute` and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
+| `VisitRulesTests` | 17 | `StartOrder` (including that the waiting note is replaced or cleared once the first position is handled), `OrderAdvice`, `StopOff`, the visit rules (`JourneyRules.VISIT`, `RouteFollowRules.VISIT`), `GuidanceLine.offersReroute`, the guidance line for a ride over several floors, and `VisitEnding`, and the two library behaviours behind them: `proposeOrder(VISITOR)` returns `null` without a position, and `JourneyNavigator.end()` switches single-route guidance off. An `end()` after `onEnd` leaves every later single route with no instruction and no off-route line |
 | `DeviationPromptTests` | 7 | `DeviationPrompt.after`: the events that open, close and keep the deviation prompt, and its sentences |
 | `SdkLogcatTests` | 2 | Each SDK log level maps to a logcat priority, and the tag names the category |
 | `JourneyPlaybackLaunchTests` | 5 | Debug builds only. The launch extras in each form `adb` sends them |

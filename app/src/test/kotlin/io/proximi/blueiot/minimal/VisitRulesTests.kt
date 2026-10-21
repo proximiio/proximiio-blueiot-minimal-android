@@ -20,6 +20,8 @@ import io.proximi.map.core.MapCoordinate
 import io.proximi.map.core.RouteFollowRules
 import io.proximi.map.core.RouteGeometry
 import io.proximi.map.core.RouteGuidance
+import io.proximi.map.core.RouteLevelChange
+import io.proximi.map.core.RouteManoeuvre
 import io.proximi.map.core.RouteProjection
 import io.proximi.map.core.VenuePosition
 import io.proximi.map.live.JourneyNavigator
@@ -287,6 +289,16 @@ class VisitRulesTests {
         assertFalse(GuidanceLine.offersReroute(guidance(offRoute = true, arrived = true)))
         assertFalse(GuidanceLine.offersReroute(null))
         assertEquals("You have left the route.", GuidanceLine.sentence(guidance(offRoute = true, arrived = false)))
+    }
+
+    /**
+     * The SDK reports one level change per ride. A lift ride from level 1 to level 4 is
+     * one change, and the guidance line names level 4.
+     */
+    @Test
+    fun rideOverSeveralFloorsNamesTheLastFloor() {
+        val ride = RouteLevelChange(featureType = "elevator", fromLevel = 1.0, toLevel = 4.0, coordinate = point(0.0))
+        assertEquals("Take the elevator to level 4", GuidanceLine.instruction(RouteManoeuvre.Kind.LevelChange(ride)))
     }
 
     // MARK: - The library behaviours behind the fixes
