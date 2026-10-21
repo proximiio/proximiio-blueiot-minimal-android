@@ -92,8 +92,8 @@ needs no credentials to read. There is no `mavenLocal()`.
 
 | Artifact | Version |
 | --- | --- |
-| `io.proximi.sdk:proximiio` | `6.0.0-beta.26` |
-| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.26` |
+| `io.proximi.sdk:proximiio` | `6.0.0-beta.27` |
+| `io.proximi.sdk:proximiio-blueiot` | `6.0.0-beta.27` |
 | `io.proximi.map:proximiio-map` | `6.0.0-beta.21` |
 | AGP / Kotlin | `9.3.1` / `2.2.10` (AGP 9's built-in Kotlin) |
 | compileSdk / targetSdk / minSdk | `37` / `36` / `26` |
@@ -530,8 +530,8 @@ routes to the planned stop from the visitor's position. `StopOff` holds the text
 is hidden while no kind of place is named, and during a stop-off. Which amenity kinds a
 venue has is read from the venue's own amenity tags (`VenuePoi.nearestByAmenity`) rather than from a list of categories in the
 app. What each kind is called comes from the SDK's amenity store: `amenities()` when a
-visit starts, which downloads only while nothing is stored, then `amenity(id)`, a local
-row read. The app keeps no titles of its own, so an amenity renamed on the server is
+visit starts, which downloads until the whole catalogue is stored, then
+`amenity(id)`, a local row read. The app keeps no titles of its own, so an amenity renamed on the server is
 renamed here without a release.
 
 The visit is written to `SharedPreferences` on every change and restored on launch.

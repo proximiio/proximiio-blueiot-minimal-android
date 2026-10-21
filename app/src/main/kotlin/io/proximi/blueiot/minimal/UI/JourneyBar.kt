@@ -199,8 +199,10 @@ fun JourneyBar(
         // where the visitor is.
         navigator.start()
         // The only extra download in the app, and only for a visitor who started a visit.
-        // `amenities()` reads the stored catalogue first: with one stored it reaches no
-        // network and cannot throw. A failure costs the detours and nothing else.
+        // `amenities()` serves the stored catalogue once all of it is stored: then
+        // it reaches no network and cannot throw. Until then it downloads, and a failed
+        // download returns the amenities already stored. A failure costs the detours and
+        // nothing else.
         try {
             session.sdk?.amenities()
         } catch (error: CancellationException) {
