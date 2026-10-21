@@ -72,6 +72,35 @@ class WristbandCopyTests {
         )
     }
 
+    /** A refused swap names what the visitor does next, not the relay's text. */
+    @Test
+    fun refusedSwapHasItsOwnMessage() {
+        assertEquals(
+            "Hold your current wristband next to the new one and scan again.",
+            WristbandCopy.message(BlueiotBindingError.SwapBandsApart(requestID = null)),
+        )
+        assertEquals(
+            "Your wristband isn't reachable. Please swap it at the reception desk.",
+            WristbandCopy.message(BlueiotBindingError.SwapAtReception(requestID = null)),
+        )
+    }
+
+    @Test
+    fun signingUnavailableStatesTheWait() {
+        assertEquals(
+            "Wristbands cannot be connected right now. Try again in 1 second.",
+            WristbandCopy.message(BlueiotBindingError.SigningUnavailable(retryAfter = 1.0, requestID = null)),
+        )
+        assertEquals(
+            "Wristbands cannot be connected right now. Try again in 10 seconds.",
+            WristbandCopy.message(BlueiotBindingError.SigningUnavailable(retryAfter = 9.5, requestID = null)),
+        )
+        assertEquals(
+            "Wristbands cannot be connected right now. Try again in a moment.",
+            WristbandCopy.message(BlueiotBindingError.SigningUnavailable(retryAfter = null, requestID = null)),
+        )
+    }
+
     // End reasons
 
     @Test

@@ -31,7 +31,14 @@ object WristbandCopy {
             is BlueiotBindingError.TagNotIssued -> "This wristband has not been issued yet. Please ask the staff."
             is BlueiotBindingError.InvalidTagID ->
                 "This is not a wristband number. Check the number printed on the band."
-            is BlueiotBindingError.RateLimited -> rateLimited(error.retryAfter)
+            // A refused swap to a new wristband. The current session is kept.
+            is BlueiotBindingError.SwapBandsApart -> "Hold your current wristband next to the new one and scan again."
+            is BlueiotBindingError.SwapAtReception -> "Your wristband isn't reachable. Please swap it at the reception desk."
+            is BlueiotBindingError.RateLimited -> "Too many attempts. " + tryAgain(error.retryAfter)
+            // Shown for a failed bind only. On a token refresh the SDK keeps the session and
+            // retries after `retryAfter`.
+            is BlueiotBindingError.SigningUnavailable ->
+                "Wristbands cannot be connected right now. " + tryAgain(error.retryAfter)
             is BlueiotBindingError.Network ->
                 "The venue's server cannot be reached. Check the connection and try again."
             is BlueiotBindingError.Server, is BlueiotBindingError.InvalidResponse ->
@@ -124,9 +131,13 @@ object WristbandCopy {
             is BlueiotBindingState.Ended -> "ended, ${state.reason.rawValue}"
         }
 
-    private fun rateLimited(retryAfter: Double?): String {
-        if (retryAfter == null || retryAfter <= 0) return "Too many attempts. Try again in a moment."
+    /**
+     * "Try again in N seconds." for a `retryAfter` from the relay-api, in seconds and
+     * rounded up, or "Try again in a moment." without one.
+     */
+    private fun tryAgain(retryAfter: Double?): String {
+        if (retryAfter == null || retryAfter <= 0) return "Try again in a moment."
         val seconds = ceil(retryAfter).toInt()
-        return "Too many attempts. Try again in $seconds ${if (seconds == 1) "second" else "seconds"}."
+        return "Try again in $seconds ${if (seconds == 1) "second" else "seconds"}."
     }
 }

@@ -226,7 +226,10 @@ keyed on the case and never on the relay-api's English message:
 | `TagNotAvailable` | This wristband is not active. Please ask the staff. |
 | `TagNotAtReception` | Connect this wristband at the reception desk. |
 | `TagNotIssued` | This wristband has not been issued yet. Please ask the staff. |
+| `SwapBandsApart` | Hold your current wristband next to the new one and scan again. |
+| `SwapAtReception` | Your wristband isn't reachable. Please swap it at the reception desk. |
 | `RateLimited` | Too many attempts. Try again in N seconds. |
+| `SigningUnavailable` | Wristbands cannot be connected right now. Try again in N seconds. |
 | `AppTokenRejected`, `NotARelayAPI` | Names the configuration key to check |
 
 Divergences from the iOS app:
@@ -251,6 +254,10 @@ visible control. `VenueMapScreen.isChangingWristband` is the single flag that op
 The gesture is MapLibre's `addOnMapLongClickListener`, registered inside the `configure`
 lambda's `onStyleLoaded`, so pan, pinch and rotate are unaffected. A successful bind
 replaces the current session and closes the sheet; the map and the SDK keep running.
+Outside the reception desk, on a site with a swap distance
+(`BlueiotBindingPolicy.swapNearMeters`), the relay-api accepts the new wristband only next
+to the current one. A refused swap fails with `SwapBandsApart` or `SwapAtReception` and
+keeps the current session.
 
 The same sheet lists the map credits and holds **Send diagnostics report** (see **The
 diagnostics log**). `MapOptions.chrome = MapCanvasChrome.BARE` in
@@ -740,12 +747,12 @@ example `wristband: ended, SUPERSEDED`.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Eighty-three tests in fourteen classes. Each covers behaviour that fails without anything
+Eighty-five tests in fourteen classes. Each covers behaviour that fails without anything
 on screen looking wrong. The screens are not tested; they hold no logic.
 
 | Class | Tests | Covers |
 | --- | --- | --- |
-| `WristbandCopyTests` | 7 | `WristbandCopy`: the message per bind error, the take-over refusal per location cause, the rate-limit wait, the notice per end reason, the status line per link and signal, and a log line without a tag id |
+| `WristbandCopyTests` | 9 | `WristbandCopy`: the message per bind error, the take-over refusal per location cause, the refused swap, the rate-limit and signing waits, the notice per end reason, the status line per link and signal, and a log line without a tag id |
 | `WristbandSessionTests` | 4 | When the map or the prompt is shown per binding state (a bind in progress keeps the screen), the notice of an ended session, and the permissions requested before a bind |
 | `WristbandIdTests` | 2 | The label is sent as typed, and a blank field names no wristband. A label rewritten by the app can name a different band |
 | `VenueConfigurationTests` | 3 | The sentence naming empty or invalid keys, and the binding configuration built from the URL and the app token. A missing key not named on screen leaves a **Connect** button that does nothing |
